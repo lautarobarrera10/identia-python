@@ -1,7 +1,7 @@
 [project]
 name = "identia-python"
 version = "0.1.0"
-description = "Add your description here"
+description = "Proyecto en Python para trabajar con Identia"
 readme = "README.md"
 authors = [
     { name = "Lautaro Barrera", email = "lautarobarrera12@gmail.com" }

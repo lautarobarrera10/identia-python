@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 
-from identia_python.exception import ParseoHtmlError
+from identia_python.exceptions import ParseoHtmlError
 
 
 @dataclass
@@ -32,13 +32,13 @@ def _obtener_titulo(soup: BeautifulSoup) -> str | None:
     return None
 
 
-# Sitios que no usan el primer <p> como bajada: dominio -> qué buscar con soup.find()
-SELECTORES_POR_SITIO: dict[str, dict[str, str]] = {
-    "infobae.com": {"name": "h2", "class_": "article-subheadline"},
+# Sitios que no usan el primer <p> como bajada: dominio -> (etiqueta, clase CSS)
+SELECTORES_POR_SITIO: dict[str, tuple[str, str]] = {
+    "infobae.com": ("h2", "article-subheadline"),
 }
 
 
-def _selector_para_url(url: str) -> dict[str, str] | None:
+def _selector_para_url(url: str) -> tuple[str, str] | None:
     """Devuelve el selector del sitio de la url, o None si no hay uno específico."""
     host = (urlparse(url).hostname or "").lower()
     for sitio, selector in SELECTORES_POR_SITIO.items():
@@ -57,7 +57,8 @@ def _obtener_primer_parrafo(
     """
     selector = _selector_para_url(url)
     if selector:
-        elemento = soup.find(**selector)
+        etiqueta, clase = selector
+        elemento = soup.find(etiqueta, class_=clase)
         if elemento:
             texto = " ".join(elemento.get_text().split())
             if texto:
@@ -80,8 +81,11 @@ def parsear_articulo(html: str, url: str) -> Articulo:
     parrafo = _obtener_primer_parrafo(soup, url)
 
     if not titulo or not parrafo:
-        raise ParseoHtmlError(
-            f"No se pudo obtener {'el título' if not titulo else 'el primer párrafo'}"
-        )
+        faltantes = [
+            nombre
+            for nombre, valor in (("el título", titulo), ("el primer párrafo", parrafo))
+            if not valor
+        ]
+        raise ParseoHtmlError(f"No se pudo obtener {' ni '.join(faltantes)}")
 
     return Articulo(titulo=titulo, primer_parrafo=parrafo)

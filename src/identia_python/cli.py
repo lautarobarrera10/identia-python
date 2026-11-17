@@ -10,7 +10,7 @@ from pathlib import Path
 
 import httpx
 
-from identia_python import logging_config, reporte_html
+from identia_python import cache, logging_config, reporte_html
 from identia_python.descargar import MAX_CONCURRENCIA, crear_cliente, descargar_html
 from identia_python.exceptions import DescargaHtmlError, ParseoHtmlError
 from identia_python.leer_urls import leer_urls
@@ -45,6 +45,11 @@ def _crear_parser() -> argparse.ArgumentParser:
         "--no-abrir",
         action="store_true",
         help="generar el reporte HTML sin abrirlo en el navegador",
+    )
+    parser.add_argument(
+        "--forzar",
+        action="store_true",
+        help="ignorar el caché y volver a procesar todas las urls",
     )
     return parser
 
@@ -82,6 +87,32 @@ async def _procesar_urls(urls: list[str]) -> list[Articulo | None]:
         )
 
 
+def _obtener_resultados(urls: list[str], forzar: bool) -> list[Articulo | None]:
+    """
+    Devuelve un resultado por url, en orden. Las urls que ya están en el caché
+    se toman de ahí sin descargarse; el resto se procesa y se agrega al caché.
+    """
+    datos_cache = {} if forzar else cache.cargar_cache()
+    pendientes = [url for url in urls if url not in datos_cache]
+    en_cache = len(urls) - len(pendientes)
+    if en_cache:
+        logger.info("%d/%d urls ya procesadas, se usan del caché", en_cache, len(urls))
+
+    if pendientes:
+        nuevos = asyncio.run(_procesar_urls(pendientes))
+        for url, articulo in zip(pendientes, nuevos, strict=True):
+            if articulo is not None:
+                datos_cache[url] = articulo
+        # Se recarga para no perder entradas de otras urls si se usó --forzar
+        guardar = cache.cargar_cache() if forzar else {}
+        guardar.update(datos_cache)
+        cache.guardar_cache(guardar)
+    else:
+        logger.info("Todas las urls ya estaban procesadas, no se descarga nada")
+
+    return [datos_cache.get(url) for url in urls]
+
+
 def main(argv: list[str] | None = None) -> None:
     args = _crear_parser().parse_args(argv)
 
@@ -103,7 +134,7 @@ def main(argv: list[str] | None = None) -> None:
         logger.error("El archivo %s no contiene urls.", ruta)
         sys.exit(1)
 
-    resultados = asyncio.run(_procesar_urls(urls))
+    resultados = _obtener_resultados(urls, forzar=args.forzar)
 
     # gather preserva el orden de entrada: la salida sigue el orden del archivo
     for url, articulo in zip(urls, resultados, strict=True):

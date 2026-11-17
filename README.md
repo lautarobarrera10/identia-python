@@ -22,9 +22,12 @@ uv run identia-python              # lee ./urls.txt
 uv run identia-python otro.txt     # lee otro archivo
 uv run python -m identia_python    # equivalente
 uv run identia-python --no-abrir   # genera el HTML sin abrir el navegador
+uv run identia-python --forzar     # ignora el caché y vuelve a procesar todo
 ```
 
 Además de la salida por consola, cada ejecución guarda el resultado en `resultados/resultado.html` (se sobrescribe) y lo abre automáticamente en el navegador predeterminado.
+
+Las noticias procesadas correctamente se guardan en `resultados/cache.json`. En las siguientes ejecuciones, las URLs que ya están en el caché no se vuelven a descargar: se muestra lo guardado y solo se procesan las URLs nuevas (o las que fallaron antes). Para volver a procesar todo, usá `--forzar` o borrá el archivo.
 
 Ejemplo de salida:
 
@@ -43,6 +46,7 @@ Procesadas 3/3 noticias correctamente.
 | `leer_urls.py` | Lee y limpia la lista de URLs. |
 | `descargar.py` | Descarga el HTML (sigue redirecciones, timeout de 15s, envía User-Agent). |
 | `parsear.py` | Extrae el título (`<h1>` → `og:title` → `<title>`) y el primer párrafo significativo, priorizando `<article>`. |
+| `cache.py` | Guarda y lee los artículos ya procesados (`resultados/cache.json`). |
 | `reporte_html.py` | Genera el reporte HTML, lo guarda y lo abre en el navegador. |
 | `cli.py` | Punto de entrada de la línea de comandos. |
 | `exceptions.py` | `DescargaHtmlError` y `ParseoHtmlError`. |

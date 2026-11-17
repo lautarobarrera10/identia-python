@@ -1,10 +1,11 @@
 import logging
+import webbrowser
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
 
-from identia_python import logging_config
+from identia_python import logging_config, reporte_html
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -24,6 +25,9 @@ def aislar_logging(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[
     como estaba al terminar cada test (sin handlers, cerrando el archivo).
     """
     monkeypatch.setattr(logging_config, "ARCHIVO_LOG", tmp_path / "logs" / "test.log")
+    monkeypatch.setattr(
+        reporte_html, "ARCHIVO_HTML", tmp_path / "resultados" / "resultado.html"
+    )
     yield
     logger = logging.getLogger(logging_config.LOGGER_RAIZ)
     for handler in list(logger.handlers):
@@ -31,3 +35,16 @@ def aislar_logging(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[
             logger.removeHandler(handler)
             handler.close()
     logger.setLevel(logging.NOTSET)
+
+
+@pytest.fixture(autouse=True)
+def navegador_falso(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Evita que los tests abran el navegador real; registra las urls abiertas."""
+    abiertas: list[str] = []
+
+    def abrir(url: str) -> bool:
+        abiertas.append(url)
+        return True
+
+    monkeypatch.setattr(webbrowser, "open", abrir)
+    return abiertas

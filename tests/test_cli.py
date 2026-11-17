@@ -5,7 +5,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from identia_python import cli, logging_config
+from identia_python import cli, logging_config, reporte_html
 from identia_python.exceptions import DescargaHtmlError, ParseoHtmlError
 from identia_python.parsear import Articulo
 
@@ -186,3 +186,29 @@ def test_ejecutar_como_modulo(monkeypatch: pytest.MonkeyPatch) -> None:
     runpy.run_module("identia_python", run_name="__main__")
 
     assert llamado == [True]
+
+
+def test_genera_html_y_lo_abre(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, navegador_falso: list[str]
+) -> None:
+    ruta = _escribir_urls(tmp_path, "https://a.com\n")
+    _sin_red(monkeypatch)
+
+    cli.main([str(ruta), "-q"])
+
+    html = reporte_html.ARCHIVO_HTML.read_text(encoding="utf-8")
+    assert "Título de html-https://a.com" in html
+    assert "Procesadas 1/1 noticias correctamente." in html
+    assert navegador_falso == [reporte_html.ARCHIVO_HTML.resolve().as_uri()]
+
+
+def test_no_abrir_solo_genera_html(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, navegador_falso: list[str]
+) -> None:
+    ruta = _escribir_urls(tmp_path, "https://a.com\n")
+    _sin_red(monkeypatch)
+
+    cli.main([str(ruta), "-q", "--no-abrir"])
+
+    assert reporte_html.ARCHIVO_HTML.is_file()
+    assert navegador_falso == []

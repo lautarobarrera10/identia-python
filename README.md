@@ -21,7 +21,10 @@ Agregá las URLs en `urls.txt`, una por línea. Las líneas vacías, las que emp
 uv run identia-python              # lee ./urls.txt
 uv run identia-python otro.txt     # lee otro archivo
 uv run python -m identia_python    # equivalente
+uv run identia-python --no-abrir   # genera el HTML sin abrir el navegador
 ```
+
+Además de la salida por consola, cada ejecución guarda el resultado en `resultados/resultado.html` (se sobrescribe) y lo abre automáticamente en el navegador predeterminado.
 
 Ejemplo de salida:
 
@@ -40,6 +43,7 @@ Procesadas 3/3 noticias correctamente.
 | `leer_urls.py` | Lee y limpia la lista de URLs. |
 | `descargar.py` | Descarga el HTML (sigue redirecciones, timeout de 15s, envía User-Agent). |
 | `parsear.py` | Extrae el título (`<h1>` → `og:title` → `<title>`) y el primer párrafo significativo, priorizando `<article>`. |
+| `reporte_html.py` | Genera el reporte HTML, lo guarda y lo abre en el navegador. |
 | `cli.py` | Punto de entrada de la línea de comandos. |
 | `exceptions.py` | `DescargaHtmlError` y `ParseoHtmlError`. |
 

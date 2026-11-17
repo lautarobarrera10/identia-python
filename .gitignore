@@ -17,3 +17,6 @@ htmlcov/
 
 # Logs
 logs/
+
+# Reportes generados
+resultados/

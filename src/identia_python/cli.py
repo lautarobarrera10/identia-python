@@ -10,7 +10,7 @@ from pathlib import Path
 
 import httpx
 
-from identia_python import logging_config
+from identia_python import logging_config, reporte_html
 from identia_python.descargar import MAX_CONCURRENCIA, crear_cliente, descargar_html
 from identia_python.exceptions import DescargaHtmlError, ParseoHtmlError
 from identia_python.leer_urls import leer_urls
@@ -40,6 +40,11 @@ def _crear_parser() -> argparse.ArgumentParser:
     )
     nivel.add_argument(
         "-q", "--quiet", action="store_true", help="mostrar solo advertencias y errores"
+    )
+    parser.add_argument(
+        "--no-abrir",
+        action="store_true",
+        help="generar el reporte HTML sin abrirlo en el navegador",
     )
     return parser
 
@@ -110,3 +115,9 @@ def main(argv: list[str] | None = None) -> None:
 
     errores = resultados.count(None)
     print(f"Procesadas {len(urls) - errores}/{len(urls)} noticias correctamente.")
+
+    contenido = reporte_html.generar_html(urls, resultados)
+    ruta_html = reporte_html.guardar_html(contenido, reporte_html.ARCHIVO_HTML)
+    logger.info("Resultado guardado en %s", ruta_html)
+    if not args.no_abrir:
+        reporte_html.abrir_en_navegador(ruta_html)

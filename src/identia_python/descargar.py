@@ -2,9 +2,13 @@
 Descargar el html de una url
 """
 
+import logging
+
 import httpx
 
 from identia_python.exceptions import DescargaHtmlError
+
+logger = logging.getLogger(__name__)
 
 TIMEOUT_SEGUNDOS = 15
 HEADERS = {
@@ -23,17 +27,24 @@ def descargar_html(url: str) -> str:
     Sigue redirecciones. Lanza DescargaHtmlError si la respuesta no es exitosa
     o si ocurre un error de red.
     """
+    logger.debug("Descargando %s", url)
     try:
         r = httpx.get(
             url, follow_redirects=True, timeout=TIMEOUT_SEGUNDOS, headers=HEADERS
         )
     except httpx.HTTPError as e:
+        logger.warning("Error de red al descargar %s: %s: %s", url, type(e).__name__, e)
         raise DescargaHtmlError(
             f"Error de red al descargar la url: {url} ({type(e).__name__}: {e})"
         ) from e
 
     if r.is_success:
+        logger.debug(
+            "Descargado %s (status %d, %d caracteres)", url, r.status_code, len(r.text)
+        )
         return r.text
+
+    logger.warning("Status %d al descargar %s", r.status_code, url)
 
     raise DescargaHtmlError(
         f"Error al descargar la url: {url}, status code: {r.status_code}"

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from identia_python import cli
+from identia_python import cli, logging_config
 from identia_python.exceptions import DescargaHtmlError, ParseoHtmlError
 from identia_python.parsear import Articulo
 
@@ -18,30 +18,26 @@ def _parsear_falso(html: str, url: str) -> Articulo:
     return Articulo(titulo=f"Título de {html}", primer_parrafo="Un párrafo")
 
 
-def test_archivo_inexistente(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    monkeypatch.setattr("sys.argv", ["identia-python", str(tmp_path / "no.txt")])
+def _sin_red(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "descargar_html", lambda url: f"html-{url}")
+    monkeypatch.setattr(cli, "parsear_articulo", _parsear_falso)
 
+
+def test_archivo_inexistente(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     with pytest.raises(SystemExit) as exc:
-        cli.main()
+        cli.main([str(tmp_path / "no.txt")])
 
     assert exc.value.code == 1
-    assert "No se encontró el archivo de urls" in capsys.readouterr().err
+    assert "ERROR: No se encontró el archivo de urls" in capsys.readouterr().err
 
 
-def test_archivo_sin_urls(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
+def test_archivo_sin_urls(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     ruta = _escribir_urls(tmp_path, "# solo comentarios\n\n")
-    monkeypatch.setattr("sys.argv", ["identia-python", str(ruta)])
 
     with pytest.raises(SystemExit) as exc:
-        cli.main()
+        cli.main([str(ruta)])
 
     assert exc.value.code == 1
     assert "no contiene urls" in capsys.readouterr().err
@@ -55,15 +51,14 @@ def test_usa_urls_txt_del_directorio_actual_por_defecto(
     _escribir_urls(tmp_path, "https://a.com\n")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("sys.argv", ["identia-python"])
-    monkeypatch.setattr(cli, "descargar_html", lambda url: "html-a")
-    monkeypatch.setattr(cli, "parsear_articulo", _parsear_falso)
+    _sin_red(monkeypatch)
 
     cli.main()
 
-    salida = capsys.readouterr().out
-    assert "[1/1] https://a.com" in salida
-    assert "Título de html-a" in salida
-    assert "Procesadas 1/1 noticias correctamente." in salida
+    salida = capsys.readouterr()
+    assert "INFO: [1/1] https://a.com" in salida.err
+    assert "Título de html-https://a.com" in salida.out
+    assert "Procesadas 1/1 noticias correctamente." in salida.out
 
 
 def test_procesa_urls_y_cuenta_errores(
@@ -75,7 +70,6 @@ def test_procesa_urls_y_cuenta_errores(
         tmp_path,
         "https://ok.com\nhttps://descarga.com\nhttps://parseo.com\nhttps://raro.com\n",
     )
-    monkeypatch.setattr("sys.argv", ["identia-python", str(ruta)])
 
     def descargar_falso(url: str) -> str:
         if url == "https://descarga.com":
@@ -92,15 +86,65 @@ def test_procesa_urls_y_cuenta_errores(
     monkeypatch.setattr(cli, "descargar_html", descargar_falso)
     monkeypatch.setattr(cli, "parsear_articulo", parsear_falso)
 
-    cli.main()
+    cli.main([str(ruta)])
 
-    salida = capsys.readouterr().out
-    assert "Título de https://ok.com" in salida
-    assert "Primer párrafo: Un párrafo" in salida
-    assert "Error: falló la descarga" in salida
-    assert "Error: sin título" in salida
-    assert "Error inesperado: ValueError: url inválida" in salida
-    assert "Procesadas 1/4 noticias correctamente." in salida
+    salida = capsys.readouterr()
+    assert "Título de https://ok.com" in salida.out
+    assert "Primer párrafo: Un párrafo" in salida.out
+    assert "Procesadas 1/4 noticias correctamente." in salida.out
+    assert "ERROR: falló la descarga" in salida.err
+    assert "ERROR: sin título" in salida.err
+    assert "ERROR: Error inesperado: ValueError: url inválida" in salida.err
+    # El traceback solo se muestra en consola con -v
+    assert "Traceback" not in salida.err
+
+
+def test_verbose_muestra_debug(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    ruta = _escribir_urls(tmp_path, "https://a.com\nhttps://a.com\n")
+    _sin_red(monkeypatch)
+
+    cli.main([str(ruta), "-v"])
+
+    assert "DEBUG: Leídas 1 urls" in capsys.readouterr().err
+
+
+def test_quiet_oculta_info(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    ruta = _escribir_urls(tmp_path, "https://a.com\n")
+    _sin_red(monkeypatch)
+
+    cli.main([str(ruta), "-q"])
+
+    salida = capsys.readouterr()
+    assert salida.err == ""
+    assert "Procesadas 1/1 noticias correctamente." in salida.out
+
+
+def test_verbose_y_quiet_son_excluyentes(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit) as exc:
+        cli.main([str(tmp_path / "urls.txt"), "-v", "-q"])
+
+    assert exc.value.code == 2
+
+
+def test_escribe_archivo_de_log(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    ruta = _escribir_urls(tmp_path, "https://a.com\n")
+    _sin_red(monkeypatch)
+
+    cli.main([str(ruta), "-q"])
+
+    contenido = logging_config.ARCHIVO_LOG.read_text(encoding="utf-8")
+    assert "INFO identia_python.cli: [1/1] https://a.com" in contenido
+    assert "DEBUG identia_python.leer_urls: Leídas 1 urls" in contenido
 
 
 def test_ejecutar_como_modulo(monkeypatch: pytest.MonkeyPatch) -> None:

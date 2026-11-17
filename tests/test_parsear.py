@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 
 import pytest
@@ -73,3 +74,38 @@ def test_error_si_faltan_ambos() -> None:
         ParseoHtmlError, match="^No se pudo obtener el título ni el primer párrafo$"
     ):
         parsear_articulo(html, "https://x.com")
+
+
+def test_loguea_warning_antes_de_fallar(caplog: pytest.LogCaptureFixture) -> None:
+    with pytest.raises(ParseoHtmlError):
+        parsear_articulo("<html><body></body></html>", "https://x.com")
+
+    assert [(r.levelno, r.getMessage()) for r in caplog.records] == [
+        (
+            logging.WARNING,
+            "No se pudo obtener el título ni el primer párrafo en https://x.com",
+        )
+    ]
+
+
+def test_loguea_fuente_del_titulo_en_debug(caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.DEBUG, logger="identia_python")
+    html = (
+        "<html><head><title>T</title></head>"
+        "<body><p>Un párrafo suficientemente largo para superar el mínimo.</p></body>"
+        "</html>"
+    )
+
+    parsear_articulo(html, "https://x.com")
+
+    assert "Título obtenido de <title>" in caplog.text
+
+
+def test_selector_sin_resultado_usa_parrafo_generico(
+    leer_fixture: Callable[[str], str],
+) -> None:
+    html = leer_fixture("articulo_generico.html")
+
+    articulo = parsear_articulo(html, "https://www.infobae.com/nota/")
+
+    assert articulo.primer_parrafo.startswith("Este es el primer párrafo")

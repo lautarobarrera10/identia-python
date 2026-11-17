@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -65,3 +66,17 @@ def test_error_de_red(monkeypatch: pytest.MonkeyPatch) -> None:
 
     with pytest.raises(DescargaHtmlError, match="Error de red"):
         descargar_html("https://x.com")
+
+
+def test_loguea_warning_antes_de_fallar(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    _usar_transporte(monkeypatch, lambda req: httpx.Response(500))
+
+    with pytest.raises(DescargaHtmlError):
+        descargar_html("https://x.com")
+
+    assert ("identia_python.descargar", logging.WARNING) in [
+        (r.name, r.levelno) for r in caplog.records
+    ]
+    assert "Status 500 al descargar https://x.com" in caplog.text

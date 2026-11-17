@@ -2,12 +2,15 @@
 Parsear el html de una página para obtener el título y el primer párrafo
 """
 
+import logging
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 
 from identia_python.exceptions import ParseoHtmlError
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -20,13 +23,16 @@ def _obtener_titulo(soup: BeautifulSoup) -> str | None:
     """Busca el título en <h1>, luego en og:title y por último en <title>."""
     h1 = soup.find("h1")
     if h1 and h1.get_text(strip=True):
+        logger.debug("Título obtenido de <h1>")
         return h1.get_text(" ", strip=True)
 
     og = soup.find("meta", property="og:title")
     if og and og.get("content"):
+        logger.debug("Título obtenido de og:title")
         return str(og["content"]).strip()
 
     if soup.title and soup.title.string:
+        logger.debug("Título obtenido de <title>")
         return soup.title.string.strip()
 
     return None
@@ -62,7 +68,9 @@ def _obtener_primer_parrafo(
         if elemento:
             texto = " ".join(elemento.get_text().split())
             if texto:
+                logger.debug("Párrafo obtenido con el selector %s.%s", etiqueta, clase)
                 return texto
+        logger.debug("El selector %s.%s no encontró texto", etiqueta, clase)
 
     contenedor = soup.find("article") or soup
     for p in contenedor.find_all("p"):
@@ -70,6 +78,7 @@ def _obtener_primer_parrafo(
         # luego se normalizan los espacios/saltos de línea.
         texto = " ".join(p.get_text().split())
         if len(texto) >= min_largo:
+            logger.debug("Párrafo obtenido del primer <p> significativo")
             return texto
     return None
 
@@ -86,6 +95,8 @@ def parsear_articulo(html: str, url: str) -> Articulo:
             for nombre, valor in (("el título", titulo), ("el primer párrafo", parrafo))
             if not valor
         ]
-        raise ParseoHtmlError(f"No se pudo obtener {' ni '.join(faltantes)}")
+        mensaje = f"No se pudo obtener {' ni '.join(faltantes)}"
+        logger.warning("%s en %s", mensaje, url)
+        raise ParseoHtmlError(mensaje)
 
     return Articulo(titulo=titulo, primer_parrafo=parrafo)

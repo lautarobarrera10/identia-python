@@ -43,7 +43,7 @@ Procesadas 3/3 noticias correctamente.
 | `cli.py` | Punto de entrada de la línea de comandos. |
 | `exceptions.py` | `DescargaHtmlError` y `ParseoHtmlError`. |
 
-Los sitios cuya bajada no está en un `<p>` se configuran en `SELECTORES_POR_SITIO` (`parsear.py`). Por ejemplo, Infobae usa `h2.article-subheadline`.
+Los sitios cuya bajada no está en un `<p>` se configuran en `SELECTORES_POR_SITIO` (`parsear.py`). Por ejemplo, Infobae usa `h2.article-subheadline` y Clarín `h2.storySummary`. Si la bajada viene como lista (`<li>`), cada ítem se devuelve en una línea.
 
 ## Desarrollo
 

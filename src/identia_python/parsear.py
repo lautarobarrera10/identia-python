@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from identia_python.exceptions import ParseoHtmlError
 
@@ -41,7 +41,26 @@ def _obtener_titulo(soup: BeautifulSoup) -> str | None:
 # Sitios que no usan el primer <p> como bajada: dominio -> (etiqueta, clase CSS)
 SELECTORES_POR_SITIO: dict[str, tuple[str, str]] = {
     "infobae.com": ("h2", "article-subheadline"),
+    "clarin.com": ("h2", "storySummary"),
 }
+
+
+def _texto_normalizado(elemento: Tag) -> str:
+    """Texto del elemento con los espacios y saltos de línea normalizados."""
+    # Sin separador para no meter espacios antes de la puntuación en <b>, <a>, etc.
+    return " ".join(elemento.get_text().split())
+
+
+def _texto_de_bajada(elemento: Tag) -> str:
+    """
+    Texto de la bajada. Si viene como lista (p. ej. Clarín usa <ul><li>),
+    devuelve un ítem por línea para que no queden pegados.
+    """
+    items = [_texto_normalizado(li) for li in elemento.find_all("li")]
+    items = [item for item in items if item]
+    if items:
+        return "\n".join(items)
+    return _texto_normalizado(elemento)
 
 
 def _selector_para_url(url: str) -> tuple[str, str] | None:
@@ -65,8 +84,8 @@ def _obtener_primer_parrafo(
     if selector:
         etiqueta, clase = selector
         elemento = soup.find(etiqueta, class_=clase)
-        if elemento:
-            texto = " ".join(elemento.get_text().split())
+        if isinstance(elemento, Tag):
+            texto = _texto_de_bajada(elemento)
             if texto:
                 logger.debug("Párrafo obtenido con el selector %s.%s", etiqueta, clase)
                 return texto
@@ -74,9 +93,7 @@ def _obtener_primer_parrafo(
 
     contenedor = soup.find("article") or soup
     for p in contenedor.find_all("p"):
-        # Sin separador para no meter espacios antes de la puntuación en <b>, <a>, etc.;
-        # luego se normalizan los espacios/saltos de línea.
-        texto = " ".join(p.get_text().split())
+        texto = _texto_normalizado(p)
         if len(texto) >= min_largo:
             logger.debug("Párrafo obtenido del primer <p> significativo")
             return texto

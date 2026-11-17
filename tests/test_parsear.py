@@ -40,6 +40,30 @@ def test_selector_de_infobae_no_aplica_a_otros_dominios(
     assert articulo.primer_parrafo.startswith("Primer párrafo del cuerpo")
 
 
+def test_selector_especifico_de_clarin_une_items_con_salto_de_linea(
+    leer_fixture: Callable[[str], str],
+) -> None:
+    html = leer_fixture("articulo_clarin.html")
+
+    articulo = parsear_articulo(html, "https://www.clarin.com/politica/nota.html")
+
+    assert articulo.titulo == "Título de la noticia en Clarín"
+    assert articulo.primer_parrafo == (
+        "Primer ítem de la bajada, con negrita.\nSegundo ítem de la bajada."
+    )
+
+
+def test_bajada_de_clarin_sin_lista() -> None:
+    html = (
+        "<html><body><h1>Título</h1>"
+        '<h2 class="storySummary">Bajada   en texto plano.</h2></body></html>'
+    )
+
+    articulo = parsear_articulo(html, "https://www.clarin.com/nota.html")
+
+    assert articulo.primer_parrafo == "Bajada en texto plano."
+
+
 def test_titulo_desde_og_title_si_no_hay_h1() -> None:
     html = (
         '<html><head><meta property="og:title" content="Título OG"></head>'

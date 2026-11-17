@@ -1,6 +1,8 @@
+import asyncio
 import runpy
 from pathlib import Path
 
+import httpx
 import pytest
 
 from identia_python import cli, logging_config
@@ -18,8 +20,12 @@ def _parsear_falso(html: str, url: str) -> Articulo:
     return Articulo(titulo=f"Título de {html}", primer_parrafo="Un párrafo")
 
 
+async def _descargar_falso(url: str, cliente: httpx.AsyncClient) -> str:
+    return f"html-{url}"
+
+
 def _sin_red(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(cli, "descargar_html", lambda url: f"html-{url}")
+    monkeypatch.setattr(cli, "descargar_html", _descargar_falso)
     monkeypatch.setattr(cli, "parsear_articulo", _parsear_falso)
 
 
@@ -71,7 +77,7 @@ def test_procesa_urls_y_cuenta_errores(
         "https://ok.com\nhttps://descarga.com\nhttps://parseo.com\nhttps://raro.com\n",
     )
 
-    def descargar_falso(url: str) -> str:
+    async def descargar_falso(url: str, cliente: httpx.AsyncClient) -> str:
         if url == "https://descarga.com":
             raise DescargaHtmlError("falló la descarga")
         if url == "https://raro.com":
@@ -97,6 +103,32 @@ def test_procesa_urls_y_cuenta_errores(
     assert "ERROR: Error inesperado: ValueError: url inválida" in salida.err
     # El traceback solo se muestra en consola con -v
     assert "Traceback" not in salida.err
+
+
+def test_salida_respeta_orden_del_archivo(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    urls = ["https://a.com", "https://b.com", "https://c.com"]
+    ruta = _escribir_urls(tmp_path, "\n".join(urls) + "\n")
+    terminadas: list[str] = []
+
+    async def descargar_falso(url: str, cliente: httpx.AsyncClient) -> str:
+        # La primera url tarda más: las descargas terminan en orden inverso
+        await asyncio.sleep(0.01 * (len(urls) - urls.index(url)))
+        terminadas.append(url)
+        return url
+
+    monkeypatch.setattr(cli, "descargar_html", descargar_falso)
+    monkeypatch.setattr(cli, "parsear_articulo", _parsear_falso)
+
+    cli.main([str(ruta), "-q"])
+
+    assert terminadas == list(reversed(urls))
+    salida = capsys.readouterr().out
+    posiciones = [salida.index(f"Título de {url}") for url in urls]
+    assert posiciones == sorted(posiciones)
 
 
 def test_verbose_muestra_debug(

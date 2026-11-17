@@ -3,15 +3,18 @@ Interfaz de línea de comandos.
 """
 
 import argparse
+import asyncio
 import logging
 import sys
 from pathlib import Path
 
+import httpx
+
 from identia_python import logging_config
-from identia_python.descargar import descargar_html
+from identia_python.descargar import MAX_CONCURRENCIA, crear_cliente, descargar_html
 from identia_python.exceptions import DescargaHtmlError, ParseoHtmlError
 from identia_python.leer_urls import leer_urls
-from identia_python.parsear import parsear_articulo
+from identia_python.parsear import Articulo, parsear_articulo
 
 ARCHIVO_URLS = "urls.txt"
 
@@ -41,6 +44,39 @@ def _crear_parser() -> argparse.ArgumentParser:
     return parser
 
 
+async def _procesar_url(
+    url: str,
+    i: int,
+    total: int,
+    cliente: httpx.AsyncClient,
+    semaforo: asyncio.Semaphore,
+) -> Articulo | None:
+    """Descarga y parsea una url. Devuelve None (y loguea) si falla."""
+    async with semaforo:
+        logger.info("[%d/%d] %s", i, total, url)
+        try:
+            html = await descargar_html(url, cliente)
+            return parsear_articulo(html, url)
+        except (DescargaHtmlError, ParseoHtmlError) as e:
+            logger.error("%s", e)
+        except Exception as e:  # p. ej. url inválida
+            logger.error("Error inesperado: %s: %s", type(e).__name__, e)
+            logger.debug("Detalle del error inesperado", exc_info=True)
+        return None
+
+
+async def _procesar_urls(urls: list[str]) -> list[Articulo | None]:
+    """Procesa todas las urls en paralelo, con un límite de concurrencia."""
+    semaforo = asyncio.Semaphore(MAX_CONCURRENCIA)
+    async with crear_cliente() as cliente:
+        return await asyncio.gather(
+            *(
+                _procesar_url(url, i, len(urls), cliente, semaforo)
+                for i, url in enumerate(urls, start=1)
+            )
+        )
+
+
 def main(argv: list[str] | None = None) -> None:
     args = _crear_parser().parse_args(argv)
 
@@ -62,24 +98,15 @@ def main(argv: list[str] | None = None) -> None:
         logger.error("El archivo %s no contiene urls.", ruta)
         sys.exit(1)
 
-    errores = 0
-    for i, url in enumerate(urls, start=1):
-        logger.info("[%d/%d] %s", i, len(urls), url)
-        try:
-            html = descargar_html(url)
-            articulo = parsear_articulo(html, url)
-        except (DescargaHtmlError, ParseoHtmlError) as e:
-            errores += 1
-            logger.error("%s", e)
-            continue
-        except Exception as e:  # p. ej. url inválida
-            errores += 1
-            logger.error("Error inesperado: %s: %s", type(e).__name__, e)
-            logger.debug("Detalle del error inesperado", exc_info=True)
-            continue
+    resultados = asyncio.run(_procesar_urls(urls))
 
+    # gather preserva el orden de entrada: la salida sigue el orden del archivo
+    for url, articulo in zip(urls, resultados, strict=True):
+        if articulo is None:
+            continue
         print(url)
         print("  Título:", articulo.titulo)
         print("  Primer párrafo:", articulo.primer_parrafo, "\n")
 
+    errores = resultados.count(None)
     print(f"Procesadas {len(urls) - errores}/{len(urls)} noticias correctamente.")

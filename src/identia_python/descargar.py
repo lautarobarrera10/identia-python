@@ -11,6 +11,8 @@ from identia_python.exceptions import DescargaHtmlError
 logger = logging.getLogger(__name__)
 
 TIMEOUT_SEGUNDOS = 15
+# Límite de descargas simultáneas para no saturar ni ser bloqueados por los medios
+MAX_CONCURRENCIA = 10
 HEADERS = {
     # Algunos medios bloquean pedidos sin un User-Agent de navegador
     "User-Agent": (
@@ -21,7 +23,22 @@ HEADERS = {
 }
 
 
-def descargar_html(url: str) -> str:
+def crear_cliente(
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> httpx.AsyncClient:
+    """
+    Crea un cliente async configurado para descargar noticias.
+    Se reutiliza para todas las descargas (pool de conexiones).
+    """
+    return httpx.AsyncClient(
+        follow_redirects=True,
+        timeout=TIMEOUT_SEGUNDOS,
+        headers=HEADERS,
+        transport=transport,
+    )
+
+
+async def descargar_html(url: str, cliente: httpx.AsyncClient) -> str:
     """
     Descarga el html de una url y lo devuelve como un string.
     Sigue redirecciones. Lanza DescargaHtmlError si la respuesta no es exitosa
@@ -29,9 +46,7 @@ def descargar_html(url: str) -> str:
     """
     logger.debug("Descargando %s", url)
     try:
-        r = httpx.get(
-            url, follow_redirects=True, timeout=TIMEOUT_SEGUNDOS, headers=HEADERS
-        )
+        r = await cliente.get(url)
     except httpx.HTTPError as e:
         logger.warning("Error de red al descargar %s: %s: %s", url, type(e).__name__, e)
         raise DescargaHtmlError(

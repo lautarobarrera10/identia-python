@@ -9,7 +9,7 @@ import logging
 from dataclasses import asdict
 from pathlib import Path
 
-from identia_python.parsear import Articulo
+from identia_python.modelos import Articulo
 
 ARCHIVO_CACHE = Path("resultados/cache.json")
 
@@ -43,3 +43,13 @@ def guardar_cache(cache: dict[str, Articulo], archivo: Path | None = None) -> Pa
     ruta.write_text(json.dumps(datos, ensure_ascii=False, indent=2), encoding="utf-8")
     logger.debug("Caché guardado: %d urls en %s", len(cache), ruta)
     return ruta
+
+
+def actualizar_cache(nuevos: dict[str, Articulo], archivo: Path | None = None) -> Path:
+    """
+    Agrega (o reemplaza) los artículos en el caché guardado, conservando las
+    demás entradas, y devuelve la ruta.
+    """
+    cache = cargar_cache(archivo)
+    cache.update(nuevos)
+    return guardar_cache(cache, archivo)

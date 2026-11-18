@@ -5,9 +5,9 @@ from pathlib import Path
 import httpx
 import pytest
 
-from identia_python import cache, cli, logging_config, reporte_html
+from identia_python import cache, cli, guardar_reporte, logging_config, procesamiento
 from identia_python.exceptions import DescargaHtmlError, ParseoHtmlError
-from identia_python.parsear import Articulo
+from identia_python.modelos import Articulo
 
 
 def _escribir_urls(tmp_path: Path, contenido: str) -> Path:
@@ -25,8 +25,8 @@ async def _descargar_falso(url: str, cliente: httpx.AsyncClient) -> str:
 
 
 def _sin_red(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(cli, "descargar_html", _descargar_falso)
-    monkeypatch.setattr(cli, "parsear_articulo", _parsear_falso)
+    monkeypatch.setattr(procesamiento, "descargar_html", _descargar_falso)
+    monkeypatch.setattr(procesamiento, "parsear_articulo", _parsear_falso)
 
 
 def test_archivo_inexistente(
@@ -89,8 +89,8 @@ def test_procesa_urls_y_cuenta_errores(
             raise ParseoHtmlError("sin título")
         return _parsear_falso(html, url)
 
-    monkeypatch.setattr(cli, "descargar_html", descargar_falso)
-    monkeypatch.setattr(cli, "parsear_articulo", parsear_falso)
+    monkeypatch.setattr(procesamiento, "descargar_html", descargar_falso)
+    monkeypatch.setattr(procesamiento, "parsear_articulo", parsear_falso)
 
     cli.main([str(ruta)])
 
@@ -120,8 +120,8 @@ def test_salida_respeta_orden_del_archivo(
         terminadas.append(url)
         return url
 
-    monkeypatch.setattr(cli, "descargar_html", descargar_falso)
-    monkeypatch.setattr(cli, "parsear_articulo", _parsear_falso)
+    monkeypatch.setattr(procesamiento, "descargar_html", descargar_falso)
+    monkeypatch.setattr(procesamiento, "parsear_articulo", _parsear_falso)
 
     cli.main([str(ruta), "-q"])
 
@@ -175,7 +175,7 @@ def test_escribe_archivo_de_log(
     cli.main([str(ruta), "-q"])
 
     contenido = logging_config.ARCHIVO_LOG.read_text(encoding="utf-8")
-    assert "INFO identia_python.cli: [1/1] https://a.com" in contenido
+    assert "INFO identia_python.procesamiento: [1/1] https://a.com" in contenido
     assert "DEBUG identia_python.leer_urls: Leídas 1 urls" in contenido
 
 
@@ -196,10 +196,10 @@ def test_genera_html_y_lo_abre(
 
     cli.main([str(ruta), "-q"])
 
-    html = reporte_html.ARCHIVO_HTML.read_text(encoding="utf-8")
+    html = guardar_reporte.ARCHIVO_HTML.read_text(encoding="utf-8")
     assert "Título de html-https://a.com" in html
     assert "Procesadas 1/1 noticias correctamente." in html
-    assert navegador_falso == [reporte_html.ARCHIVO_HTML.resolve().as_uri()]
+    assert navegador_falso == [guardar_reporte.ARCHIVO_HTML.resolve().as_uri()]
 
 
 def test_no_abrir_solo_genera_html(
@@ -210,7 +210,7 @@ def test_no_abrir_solo_genera_html(
 
     cli.main([str(ruta), "-q", "--no-abrir"])
 
-    assert reporte_html.ARCHIVO_HTML.is_file()
+    assert guardar_reporte.ARCHIVO_HTML.is_file()
     assert navegador_falso == []
 
 
@@ -229,8 +229,8 @@ def test_urls_en_cache_no_se_descargan(
         descargadas.append(url)
         return f"html-{url}"
 
-    monkeypatch.setattr(cli, "descargar_html", descargar_falso)
-    monkeypatch.setattr(cli, "parsear_articulo", _parsear_falso)
+    monkeypatch.setattr(procesamiento, "descargar_html", descargar_falso)
+    monkeypatch.setattr(procesamiento, "parsear_articulo", _parsear_falso)
 
     cli.main([str(ruta)])
 
@@ -256,14 +256,14 @@ def test_todo_en_cache_no_descarga_nada(
     async def no_descargar(url: str, cliente: httpx.AsyncClient) -> str:
         raise AssertionError("no debería descargar")
 
-    monkeypatch.setattr(cli, "descargar_html", no_descargar)
+    monkeypatch.setattr(procesamiento, "descargar_html", no_descargar)
 
     cli.main([str(ruta)])
 
     salida = capsys.readouterr()
     assert "Título: Guardado" in salida.out
     assert "no se descarga nada" in salida.err
-    assert "Guardado" in reporte_html.ARCHIVO_HTML.read_text(encoding="utf-8")
+    assert "Guardado" in guardar_reporte.ARCHIVO_HTML.read_text(encoding="utf-8")
 
 
 def test_errores_no_se_guardan_en_cache(
@@ -276,8 +276,8 @@ def test_errores_no_se_guardan_en_cache(
             raise DescargaHtmlError("falló")
         return url
 
-    monkeypatch.setattr(cli, "descargar_html", descargar_falso)
-    monkeypatch.setattr(cli, "parsear_articulo", _parsear_falso)
+    monkeypatch.setattr(procesamiento, "descargar_html", descargar_falso)
+    monkeypatch.setattr(procesamiento, "parsear_articulo", _parsear_falso)
 
     cli.main([str(ruta), "-q"])
 

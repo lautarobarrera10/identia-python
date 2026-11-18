@@ -1,20 +1,18 @@
 """
-Interfaz de línea de comandos.
+Interfaz de línea de comandos: interpreta los argumentos y coordina los pasos.
 """
 
 import argparse
-import asyncio
 import logging
 import sys
 from pathlib import Path
 
-import httpx
-
-from identia_python import cache, logging_config, reporte_html
-from identia_python.descargar import MAX_CONCURRENCIA, crear_cliente, descargar_html
-from identia_python.exceptions import DescargaHtmlError, ParseoHtmlError
+from identia_python import guardar_reporte, logging_config
 from identia_python.leer_urls import leer_urls
-from identia_python.parsear import Articulo, parsear_articulo
+from identia_python.navegador import abrir_en_navegador
+from identia_python.reporte_html import generar_html
+from identia_python.resultados import obtener_resultados
+from identia_python.salida_consola import imprimir_resultados
 
 ARCHIVO_URLS = "urls.txt"
 
@@ -54,77 +52,17 @@ def _crear_parser() -> argparse.ArgumentParser:
     return parser
 
 
-async def _procesar_url(
-    url: str,
-    i: int,
-    total: int,
-    cliente: httpx.AsyncClient,
-    semaforo: asyncio.Semaphore,
-) -> Articulo | None:
-    """Descarga y parsea una url. Devuelve None (y loguea) si falla."""
-    async with semaforo:
-        logger.info("[%d/%d] %s", i, total, url)
-        try:
-            html = await descargar_html(url, cliente)
-            return parsear_articulo(html, url)
-        except (DescargaHtmlError, ParseoHtmlError) as e:
-            logger.error("%s", e)
-        except Exception as e:  # p. ej. url inválida
-            logger.error("Error inesperado: %s: %s", type(e).__name__, e)
-            logger.debug("Detalle del error inesperado", exc_info=True)
-        return None
-
-
-async def _procesar_urls(urls: list[str]) -> list[Articulo | None]:
-    """Procesa todas las urls en paralelo, con un límite de concurrencia."""
-    semaforo = asyncio.Semaphore(MAX_CONCURRENCIA)
-    async with crear_cliente() as cliente:
-        return await asyncio.gather(
-            *(
-                _procesar_url(url, i, len(urls), cliente, semaforo)
-                for i, url in enumerate(urls, start=1)
-            )
-        )
-
-
-def _obtener_resultados(urls: list[str], forzar: bool) -> list[Articulo | None]:
-    """
-    Devuelve un resultado por url, en orden. Las urls que ya están en el caché
-    se toman de ahí sin descargarse; el resto se procesa y se agrega al caché.
-    """
-    datos_cache = {} if forzar else cache.cargar_cache()
-    pendientes = [url for url in urls if url not in datos_cache]
-    en_cache = len(urls) - len(pendientes)
-    if en_cache:
-        logger.info("%d/%d urls ya procesadas, se usan del caché", en_cache, len(urls))
-
-    if pendientes:
-        nuevos = asyncio.run(_procesar_urls(pendientes))
-        for url, articulo in zip(pendientes, nuevos, strict=True):
-            if articulo is not None:
-                datos_cache[url] = articulo
-        # Se recarga para no perder entradas de otras urls si se usó --forzar
-        guardar = cache.cargar_cache() if forzar else {}
-        guardar.update(datos_cache)
-        cache.guardar_cache(guardar)
-    else:
-        logger.info("Todas las urls ya estaban procesadas, no se descarga nada")
-
-    return [datos_cache.get(url) for url in urls]
-
-
-def main(argv: list[str] | None = None) -> None:
-    args = _crear_parser().parse_args(argv)
-
+def _nivel_de_consola(args: argparse.Namespace) -> int:
+    """Traduce las opciones -v / -q al nivel de logging de la consola."""
     if args.verbose:
-        nivel = logging.DEBUG
-    elif args.quiet:
-        nivel = logging.WARNING
-    else:
-        nivel = logging.INFO
-    logging_config.configurar_logging(nivel, archivo=logging_config.ARCHIVO_LOG)
+        return logging.DEBUG
+    if args.quiet:
+        return logging.WARNING
+    return logging.INFO
 
-    ruta: Path = args.archivo
+
+def _cargar_urls_o_salir(ruta: Path) -> list[str]:
+    """Lee las urls del archivo; si no existe o está vacío, termina con error."""
     if not ruta.is_file():
         logger.error("No se encontró el archivo de urls: %s", ruta)
         sys.exit(1)
@@ -133,22 +71,23 @@ def main(argv: list[str] | None = None) -> None:
     if not urls:
         logger.error("El archivo %s no contiene urls.", ruta)
         sys.exit(1)
+    return urls
 
-    resultados = _obtener_resultados(urls, forzar=args.forzar)
 
-    # gather preserva el orden de entrada: la salida sigue el orden del archivo
-    for url, articulo in zip(urls, resultados, strict=True):
-        if articulo is None:
-            continue
-        print(url)
-        print("  Título:", articulo.titulo)
-        print("  Primer párrafo:", articulo.primer_parrafo, "\n")
+def main(argv: list[str] | None = None) -> None:
+    args = _crear_parser().parse_args(argv)
+    logging_config.configurar_logging(
+        _nivel_de_consola(args), archivo=logging_config.ARCHIVO_LOG
+    )
 
-    errores = resultados.count(None)
-    print(f"Procesadas {len(urls) - errores}/{len(urls)} noticias correctamente.")
+    urls = _cargar_urls_o_salir(args.archivo)
+    resultados = obtener_resultados(urls, forzar=args.forzar)
 
-    contenido = reporte_html.generar_html(urls, resultados)
-    ruta_html = reporte_html.guardar_html(contenido, reporte_html.ARCHIVO_HTML)
+    imprimir_resultados(urls, resultados)
+
+    ruta_html = guardar_reporte.guardar_html(
+        generar_html(urls, resultados), guardar_reporte.ARCHIVO_HTML
+    )
     logger.info("Resultado guardado en %s", ruta_html)
     if not args.no_abrir:
-        reporte_html.abrir_en_navegador(ruta_html)
+        abrir_en_navegador(ruta_html)

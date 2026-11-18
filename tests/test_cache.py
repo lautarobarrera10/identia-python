@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from identia_python import cache
-from identia_python.parsear import Articulo
+from identia_python.modelos import Articulo
 
 
 def test_cargar_sin_archivo_devuelve_vacio() -> None:
@@ -20,6 +20,23 @@ def test_guardar_y_cargar_ida_y_vuelta() -> None:
     assert ruta == cache.ARCHIVO_CACHE
     assert "Título á" in ruta.read_text(encoding="utf-8")
     assert cache.cargar_cache() == datos
+
+
+def test_actualizar_cache_conserva_otras_entradas() -> None:
+    cache.guardar_cache(
+        {
+            "https://a.com": Articulo(titulo="Viejo", primer_parrafo="x"),
+            "https://b.com": Articulo(titulo="Otra", primer_parrafo="y"),
+        }
+    )
+
+    cache.actualizar_cache(
+        {"https://a.com": Articulo(titulo="Nuevo", primer_parrafo="z")}
+    )
+
+    guardado = cache.cargar_cache()
+    assert guardado["https://a.com"].titulo == "Nuevo"
+    assert guardado["https://b.com"].titulo == "Otra"
 
 
 @pytest.mark.parametrize(

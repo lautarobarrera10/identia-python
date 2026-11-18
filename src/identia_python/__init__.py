@@ -7,7 +7,8 @@ import logging
 from .descargar import descargar_html
 from .exceptions import DescargaHtmlError, ParseoHtmlError
 from .leer_urls import leer_urls
-from .parsear import Articulo, parsear_articulo
+from .modelos import Articulo
+from .parsear import parsear_articulo
 
 __all__ = [
     "Articulo",

@@ -1,18 +1,12 @@
 """
-Generación del reporte HTML con los resultados y apertura en el navegador.
+Generación del contenido del reporte HTML con los resultados.
 """
 
-import logging
-import webbrowser
 from datetime import datetime
 from html import escape
-from pathlib import Path
 
-from identia_python.parsear import Articulo
-
-ARCHIVO_HTML = Path("resultados/resultado.html")
-
-logger = logging.getLogger(__name__)
+from identia_python.modelos import Articulo
+from identia_python.resumen import texto_resumen
 
 ESTILOS = """
 :root {
@@ -64,9 +58,8 @@ def _tarjeta(i: int, url: str, articulo: Articulo | None) -> str:
 
 def generar_html(urls: list[str], resultados: list[Articulo | None]) -> str:
     """Arma una página HTML autocontenida con un resultado por url, en orden."""
-    ok = len(urls) - resultados.count(None)
     fecha = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    resumen = f"Procesadas {ok}/{len(urls)} noticias correctamente."
+    resumen = texto_resumen(resultados)
     tarjetas = "\n".join(
         _tarjeta(i, url, articulo)
         for i, (url, articulo) in enumerate(zip(urls, resultados, strict=True), 1)
@@ -88,17 +81,3 @@ def generar_html(urls: list[str], resultados: list[Articulo | None]) -> str:
 </body>
 </html>
 """
-
-
-def guardar_html(contenido: str, archivo: Path | None = None) -> Path:
-    """Escribe el HTML (por defecto en ARCHIVO_HTML) y devuelve la ruta absoluta."""
-    destino = (archivo or ARCHIVO_HTML).resolve()
-    destino.parent.mkdir(parents=True, exist_ok=True)
-    destino.write_text(contenido, encoding="utf-8")
-    return destino
-
-
-def abrir_en_navegador(ruta: Path) -> None:
-    """Abre el archivo en el navegador predeterminado."""
-    if not webbrowser.open(ruta.resolve().as_uri()):
-        logger.warning("No se pudo abrir el navegador. Abrí manualmente: %s", ruta)

@@ -41,17 +41,31 @@ Procesadas 3/3 noticias correctamente.
 
 ## Cómo funciona
 
+Cada módulo tiene una única responsabilidad (principio S de SOLID):
+
 | Módulo | Responsabilidad |
 | --- | --- |
+| `cli.py` | Interpreta los argumentos y coordina los pasos. |
 | `leer_urls.py` | Lee y limpia la lista de URLs. |
+| `resultados.py` | Decide qué URLs salen del caché y cuáles se procesan. |
+| `procesamiento.py` | Procesa las URLs en paralelo (descarga + parseo) con límite de concurrencia. |
 | `descargar.py` | Descarga el HTML (sigue redirecciones, timeout de 15s, envía User-Agent). |
-| `parsear.py` | Extrae el título (`<h1>` → `og:title` → `<title>`) y el primer párrafo significativo, priorizando `<article>`. |
+| `parsear.py` | Arma el `Articulo` a partir del HTML y valida que esté completo. |
+| `titulo.py` | Extrae el título (`<h1>` → `og:title` → `<title>`). |
+| `primer_parrafo.py` | Extrae la bajada o el primer párrafo significativo, priorizando `<article>`. |
+| `selectores.py` | Selectores de bajada específicos por sitio. |
+| `texto_html.py` | Normaliza el texto de los elementos HTML. |
+| `modelos.py` | Modelo `Articulo`. |
 | `cache.py` | Guarda y lee los artículos ya procesados (`resultados/cache.json`). |
-| `reporte_html.py` | Genera el reporte HTML, lo guarda y lo abre en el navegador. |
-| `cli.py` | Punto de entrada de la línea de comandos. |
+| `salida_consola.py` | Imprime los resultados por consola. |
+| `reporte_html.py` | Genera el contenido del reporte HTML. |
+| `guardar_reporte.py` | Escribe el reporte en `resultados/resultado.html`. |
+| `navegador.py` | Abre el reporte en el navegador. |
+| `resumen.py` | Texto del resumen ("Procesadas X/Y…"), compartido por consola y HTML. |
+| `logging_config.py` | Configura el logging. |
 | `exceptions.py` | `DescargaHtmlError` y `ParseoHtmlError`. |
 
-Los sitios cuya bajada no está en un `<p>` se configuran en `SELECTORES_POR_SITIO` (`parsear.py`). Por ejemplo, Infobae usa `h2.article-subheadline` y Clarín `h2.storySummary`. Si la bajada viene como lista (`<li>`), cada ítem se devuelve en una línea.
+Los sitios cuya bajada no está en un `<p>` se configuran en `SELECTORES_POR_SITIO` (`selectores.py`). Por ejemplo, Infobae usa `h2.article-subheadline` y Clarín `h2.storySummary`. Si la bajada viene como lista (`<li>`), cada ítem se devuelve en una línea.
 
 ## Desarrollo
 

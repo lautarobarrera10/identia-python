@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from identia_python import cache, logging_config, reporte_html
+from identia_python import cache, guardar_reporte, logging_config
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -26,7 +26,7 @@ def aislar_logging(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[
     """
     monkeypatch.setattr(logging_config, "ARCHIVO_LOG", tmp_path / "logs" / "test.log")
     monkeypatch.setattr(
-        reporte_html, "ARCHIVO_HTML", tmp_path / "resultados" / "resultado.html"
+        guardar_reporte, "ARCHIVO_HTML", tmp_path / "resultados" / "resultado.html"
     )
     monkeypatch.setattr(cache, "ARCHIVO_CACHE", tmp_path / "resultados" / "cache.json")
     yield

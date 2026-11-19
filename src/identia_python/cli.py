@@ -9,10 +9,8 @@ from pathlib import Path
 
 from identia_python import guardar_reporte, logging_config
 from identia_python.leer_urls import leer_urls
-from identia_python.navegador import abrir_en_navegador
-from identia_python.reporte_html import generar_html
 from identia_python.resultados import obtener_resultados
-from identia_python.salida_consola import imprimir_resultados
+from identia_python.salidas import Salida, SalidaConsola, SalidaHtml
 
 ARCHIVO_URLS = "urls.txt"
 
@@ -74,6 +72,14 @@ def _cargar_urls_o_salir(ruta: Path) -> list[str]:
     return urls
 
 
+def _crear_salidas(args: argparse.Namespace) -> list[Salida]:
+    """Destinos de los resultados. Para agregar uno nuevo, sumarlo a esta lista."""
+    return [
+        SalidaConsola(),
+        SalidaHtml(guardar_reporte.ARCHIVO_HTML, abrir=not args.no_abrir),
+    ]
+
+
 def main(argv: list[str] | None = None) -> None:
     args = _crear_parser().parse_args(argv)
     logging_config.configurar_logging(
@@ -83,11 +89,5 @@ def main(argv: list[str] | None = None) -> None:
     urls = _cargar_urls_o_salir(args.archivo)
     resultados = obtener_resultados(urls, forzar=args.forzar)
 
-    imprimir_resultados(urls, resultados)
-
-    ruta_html = guardar_reporte.guardar_html(
-        generar_html(urls, resultados), guardar_reporte.ARCHIVO_HTML
-    )
-    logger.info("Resultado guardado en %s", ruta_html)
-    if not args.no_abrir:
-        abrir_en_navegador(ruta_html)
+    for salida in _crear_salidas(args):
+        salida.emitir(urls, resultados)

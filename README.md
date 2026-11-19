@@ -51,8 +51,9 @@ Cada módulo tiene una única responsabilidad (principio S de SOLID):
 | `procesamiento.py` | Procesa las URLs en paralelo (descarga + parseo) con límite de concurrencia. |
 | `descargar.py` | Descarga el HTML (sigue redirecciones, timeout de 15s, envía User-Agent). |
 | `parsear.py` | Arma el `Articulo` a partir del HTML y valida que esté completo. |
-| `titulo.py` | Extrae el título (`<h1>` → `og:title` → `<title>`). |
-| `primer_parrafo.py` | Extrae la bajada o el primer párrafo significativo, priorizando `<article>`. |
+| `titulo.py` | Extrae el título con extractores intercambiables (`<h1>` → `og:title` → `<title>`). |
+| `primer_parrafo.py` | Extrae la bajada o el primer párrafo significativo, priorizando `<article>`, con extractores intercambiables. |
+| `salidas.py` | Destinos de los resultados (`SalidaConsola`, `SalidaHtml`). |
 | `selectores.py` | Selectores de bajada específicos por sitio. |
 | `texto_html.py` | Normaliza el texto de los elementos HTML. |
 | `modelos.py` | Modelo `Articulo`. |
@@ -66,6 +67,39 @@ Cada módulo tiene una única responsabilidad (principio S de SOLID):
 | `exceptions.py` | `DescargaHtmlError` y `ParseoHtmlError`. |
 
 Los sitios cuya bajada no está en un `<p>` se configuran en `SELECTORES_POR_SITIO` (`selectores.py`). Por ejemplo, Infobae usa `h2.article-subheadline` y Clarín `h2.storySummary`. Si la bajada viene como lista (`<li>`), cada ítem se devuelve en una línea.
+
+### Extensión sin modificar código (principio O de SOLID)
+
+Los puntos de variación están definidos como clases abstractas (`abc.ABC`). Para agregar comportamiento se crea una subclase nueva y se la registra; el código que las recorre no cambia.
+
+| Abstracción | Implementaciones | Dónde se registra |
+| --- | --- | --- |
+| `ExtractorTitulo` (`titulo.py`) | `TituloDesdeH1`, `TituloDesdeOgTitle`, `TituloDesdeTitle` | `EXTRACTORES_TITULO` (en orden de prioridad) |
+| `ExtractorParrafo` (`primer_parrafo.py`) | `ParrafoPorSelectorDeSitio`, `PrimerParrafoSignificativo` | `extractores_por_defecto()` |
+| `Salida` (`salidas.py`) | `SalidaConsola`, `SalidaHtml` | `_crear_salidas()` en `cli.py` |
+
+Por ejemplo, para exportar los resultados a JSON:
+
+```python
+import json
+from pathlib import Path
+
+from identia_python.salidas import Salida
+
+
+class SalidaJson(Salida):
+    def __init__(self, archivo: Path) -> None:
+        self.archivo = archivo
+
+    def emitir(self, urls, resultados) -> None:
+        datos = {
+            url: vars(articulo) if articulo else None
+            for url, articulo in zip(urls, resultados, strict=True)
+        }
+        self.archivo.write_text(json.dumps(datos, ensure_ascii=False), encoding="utf-8")
+```
+
+y sumar `SalidaJson(Path("resultados/resultado.json"))` a la lista de `_crear_salidas()`. Del mismo modo, una nueva fuente de título (p. ej. `twitter:title`) es una subclase de `ExtractorTitulo` agregada a `EXTRACTORES_TITULO`.
 
 ## Desarrollo
 

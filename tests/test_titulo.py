@@ -1,21 +1,14 @@
 import pytest
 from bs4 import BeautifulSoup
+from dobles import TituloDesdeTwitter
 
 from identia_python.titulo import (
     EXTRACTORES_TITULO,
     ExtractorTitulo,
     TituloDesdeH1,
+    TituloDesdeTitle,
     obtener_titulo,
 )
-
-
-class TituloDesdeTwitter(ExtractorTitulo):
-    """Fuente nueva agregada sin modificar titulo.py."""
-
-    def extraer(self, soup: BeautifulSoup) -> str | None:
-        meta = soup.find("meta", attrs={"name": "twitter:title"})
-        return str(meta["content"]) if meta else None
-
 
 HTML = (
     '<html><head><meta name="twitter:title" content="Desde Twitter">'
@@ -43,6 +36,24 @@ def test_sigue_con_el_siguiente_si_uno_no_encuentra() -> None:
     html = '<html><head><meta name="twitter:title" content="T"></head></html>'
 
     assert obtener_titulo(_soup(html), [TituloDesdeH1(), TituloDesdeTwitter()]) == "T"
+
+
+def test_title_solo_con_espacios_no_es_un_titulo() -> None:
+    html = "<html><head><title>   </title></head><body></body></html>"
+
+    assert obtener_titulo(_soup(html)) is None
+
+
+def test_og_title_se_normaliza() -> None:
+    html = '<html><head><meta property="og:title" content="  Un   título "></head>'
+
+    assert obtener_titulo(_soup(html)) == "Un título"
+
+
+def test_title_con_saltos_de_linea_se_normaliza() -> None:
+    html = "<title>\n  Un\n  título\n</title>"
+
+    assert TituloDesdeTitle().extraer(_soup(html)) == "Un título"
 
 
 def test_sin_extractores_devuelve_none() -> None:

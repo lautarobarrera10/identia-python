@@ -8,7 +8,7 @@ import logging
 import httpx
 
 from identia_python.descargar import MAX_CONCURRENCIA, crear_cliente, descargar_html
-from identia_python.exceptions import DescargaHtmlError, ParseoHtmlError
+from identia_python.exceptions import IdentiaError
 from identia_python.modelos import Articulo
 from identia_python.parsear import parsear_articulo
 
@@ -28,7 +28,7 @@ async def procesar_url(
         try:
             html = await descargar_html(url, cliente)
             return parsear_articulo(html, url)
-        except (DescargaHtmlError, ParseoHtmlError) as e:
+        except IdentiaError as e:  # cualquier error propio, actual o futuro
             logger.error("%s", e)
         except Exception as e:  # p. ej. url inválida
             logger.error("Error inesperado: %s: %s", type(e).__name__, e)

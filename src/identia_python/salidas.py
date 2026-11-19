@@ -24,7 +24,14 @@ class Salida(ABC):
 
     @abstractmethod
     def emitir(self, urls: list[str], resultados: list[Articulo | None]) -> None:
-        """Presenta los resultados (uno por url, en el mismo orden)."""
+        """
+        Presenta los resultados (uno por url, en el mismo orden).
+
+        Contrato que toda subclase debe respetar:
+        - Precondición: len(urls) == len(resultados). Las listas pueden estar
+          vacías o tener solo None; una subclase no puede exigir más que esto.
+        - Postcondición: no modifica las listas recibidas y devuelve None.
+        """
 
 
 class SalidaConsola(Salida):

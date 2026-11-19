@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from dobles import SalidaEnMemoria
 
 from identia_python.modelos import Articulo
 from identia_python.salidas import Salida, SalidaConsola, SalidaHtml
@@ -10,16 +11,6 @@ RESULTADOS: list[Articulo | None] = [
     Articulo(titulo="Título A", primer_parrafo="Párrafo A"),
     None,
 ]
-
-
-class SalidaEnMemoria(Salida):
-    """Salida nueva agregada sin modificar salidas.py."""
-
-    def __init__(self) -> None:
-        self.recibido: list[tuple[list[str], list[Articulo | None]]] = []
-
-    def emitir(self, urls: list[str], resultados: list[Articulo | None]) -> None:
-        self.recibido.append((urls, resultados))
 
 
 def test_salida_nueva_recibe_urls_y_resultados() -> None:

@@ -1,5 +1,6 @@
 import pytest
 from bs4 import BeautifulSoup
+from dobles import ParrafoDesdeResumen
 
 from identia_python.primer_parrafo import (
     ExtractorParrafo,
@@ -12,14 +13,6 @@ HTML = (
     '<html><body><div class="resumen">Resumen propio del sitio.</div>'
     "<p>Un párrafo suficientemente largo para superar el mínimo.</p></body></html>"
 )
-
-
-class ParrafoDesdeResumen(ExtractorParrafo):
-    """Estrategia nueva agregada sin modificar primer_parrafo.py."""
-
-    def extraer(self, soup: BeautifulSoup, url: str) -> str | None:
-        div = soup.find("div", class_="resumen")
-        return div.get_text(strip=True) if div else None
 
 
 def _soup(html: str) -> BeautifulSoup:
@@ -36,7 +29,10 @@ def test_extractor_nuevo_antepuesto_gana() -> None:
 
 
 def test_por_defecto_usa_el_primer_parrafo_significativo() -> None:
-    assert obtener_primer_parrafo(_soup(HTML), "https://x.com").startswith("Un párrafo")
+    parrafo = obtener_primer_parrafo(_soup(HTML), "https://x.com")
+
+    assert parrafo is not None
+    assert parrafo.startswith("Un párrafo")
 
 
 def test_min_largo_configurable() -> None:
@@ -45,6 +41,16 @@ def test_min_largo_configurable() -> None:
     assert (
         obtener_primer_parrafo(_soup(HTML), "https://x.com", extractores=extractores)
         is None
+    )
+
+
+def test_min_largo_cero_no_devuelve_parrafo_vacio() -> None:
+    html = "<p>   </p><p>Texto</p>"
+    extractores = [PrimerParrafoSignificativo(min_largo=0)]
+
+    assert (
+        obtener_primer_parrafo(_soup(html), "https://x.com", extractores=extractores)
+        == "Texto"
     )
 
 

@@ -101,6 +101,22 @@ class SalidaJson(Salida):
 
 y sumar `SalidaJson(Path("resultados/resultado.json"))` a la lista de `_crear_salidas()`. Del mismo modo, una nueva fuente de título (p. ej. `twitter:title`) es una subclase de `ExtractorTitulo` agregada a `EXTRACTORES_TITULO`.
 
+### Subclases intercambiables (principio L de SOLID)
+
+Cualquier subclase tiene que poder reemplazar a otra sin que el código que la usa lo note. Para eso cada abstracción documenta un contrato en su docstring y todas las implementaciones lo cumplen:
+
+| Abstracción | Acepta | Garantiza | No puede |
+| --- | --- | --- | --- |
+| `ExtractorTitulo.extraer(soup)` | Cualquier soup, aunque esté vacío o le falten etiquetas. | Texto no vacío y con los espacios normalizados, o `None`. | Devolver `""` ni lanzar excepciones si falta la etiqueta. |
+| `ExtractorParrafo.extraer(soup, url)` | Cualquier soup y cualquier url, aunque sea de un sitio sin selector o esté mal formada. | Texto no vacío (una o más líneas, cada una normalizada), o `None`. | Devolver `""` ni lanzar excepciones si falta el elemento. |
+| `Salida.emitir(urls, resultados)` | Listas del mismo largo, incluso vacías o solo con `None`. | Devuelve `None`. | Modificar las listas recibidas ni exigir más que lo anterior. |
+
+Gracias a esto, `obtener_titulo` y `obtener_primer_parrafo` confían en el contrato (`is not None`) en lugar de defenderse de resultados raros.
+
+Los errores propios heredan de `IdentiaError` (`DescargaHtmlError`, `ParseoHtmlError`). `procesamiento.py` atrapa `IdentiaError`, así que un error nuevo que herede de ella se maneja sin cambios.
+
+Toda subclase nueva tiene que pasar los tests de `tests/test_contratos.py`. Para sumarla, agregala a la lista de parametrización que corresponda (`EXTRACTORES_TITULO`, `EXTRACTORES_PARRAFO` o `FABRICAS_SALIDA`). Las implementaciones de ejemplo que usan los tests están en `tests/dobles.py`.
+
 ## Desarrollo
 
 ```bash

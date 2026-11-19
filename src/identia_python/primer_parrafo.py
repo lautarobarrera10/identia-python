@@ -4,6 +4,10 @@ Obtención del primer párrafo (o la bajada) de una noticia.
 Cada forma de encontrar la bajada es un ExtractorParrafo. Para agregar una
 nueva se crea otra subclase y se la pasa en la lista de extractores, sin
 modificar obtener_primer_parrafo (principio Open/Closed).
+
+Toda subclase cumple el contrato de ExtractorParrafo.extraer, así que cualquiera
+puede reemplazar a otra sin que obtener_primer_parrafo lo note (principio de
+Liskov).
 """
 
 import logging
@@ -25,7 +29,17 @@ class ExtractorParrafo(ABC):
 
     @abstractmethod
     def extraer(self, soup: BeautifulSoup, url: str) -> str | None:
-        """Devuelve el párrafo, o None si esta estrategia no lo encuentra."""
+        """
+        Devuelve el párrafo, o None si esta estrategia no lo encuentra.
+
+        Contrato que toda subclase debe respetar:
+        - Precondición: acepta cualquier soup (aunque esté vacío) y cualquier
+          url, incluso de un sitio sin selector propio o mal formada.
+        - Postcondición: devuelve un texto no vacío o None, nunca "". Puede
+          tener varias líneas separadas por "\\n" (bajadas en forma de lista),
+          cada una no vacía y con los espacios normalizados.
+        - No lanza excepciones si falta el elemento buscado.
+        """
 
 
 class ParrafoPorSelectorDeSitio(ExtractorParrafo):
@@ -56,7 +70,8 @@ class PrimerParrafoSignificativo(ExtractorParrafo):
         contenedor = soup.find("article") or soup
         for p in contenedor.find_all("p"):
             texto = texto_normalizado(p)
-            if len(texto) >= self.min_largo:
+            # Con min_largo=0 un <p> vacío pasaría el filtro: se exige texto
+            if texto and len(texto) >= self.min_largo:
                 logger.debug("Párrafo obtenido del primer <p> significativo")
                 return texto
         return None
@@ -85,6 +100,6 @@ def obtener_primer_parrafo(
         extractores = extractores_por_defecto(min_largo)
     for extractor in extractores:
         parrafo = extractor.extraer(soup, url)
-        if parrafo:
+        if parrafo is not None:  # el contrato garantiza que no es ""
             return parrafo
     return None

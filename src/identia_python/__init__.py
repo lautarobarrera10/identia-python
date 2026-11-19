@@ -5,7 +5,7 @@ Descarga noticias y extrae su título y primer párrafo.
 import logging
 
 from .descargar import descargar_html
-from .exceptions import DescargaHtmlError, ParseoHtmlError
+from .exceptions import DescargaHtmlError, IdentiaError, ParseoHtmlError
 from .leer_urls import leer_urls
 from .modelos import Articulo
 from .parsear import parsear_articulo
@@ -13,6 +13,7 @@ from .parsear import parsear_articulo
 __all__ = [
     "Articulo",
     "DescargaHtmlError",
+    "IdentiaError",
     "ParseoHtmlError",
     "descargar_html",
     "leer_urls",

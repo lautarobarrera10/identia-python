@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from identia_python.navegador import abrir_en_navegador
+from identia_python.navegador import NavegadorWeb, abrir_en_navegador
 
 
 def test_abrir_en_navegador_usa_uri_file(
@@ -27,3 +27,11 @@ def test_abrir_en_navegador_avisa_si_falla(
     abrir_en_navegador(tmp_path / "r.html")
 
     assert "No se pudo abrir el navegador" in caplog.text
+
+
+def test_navegador_web_abre_la_ruta(tmp_path: Path, navegador_falso: list[str]) -> None:
+    ruta = tmp_path / "r.html"
+
+    NavegadorWeb().abrir(ruta)
+
+    assert navegador_falso == [ruta.resolve().as_uri()]

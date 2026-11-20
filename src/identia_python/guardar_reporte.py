@@ -13,3 +13,14 @@ def guardar_html(contenido: str, archivo: Path | None = None) -> Path:
     destino.parent.mkdir(parents=True, exist_ok=True)
     destino.write_text(contenido, encoding="utf-8")
     return destino
+
+
+class ReporteEnArchivo:
+    """Guarda el reporte en un archivo. Cumple GuardadorReporte (salidas.py)."""
+
+    def __init__(self, archivo: Path | None = None) -> None:
+        # None: se usa ARCHIVO_HTML en el momento de guardar
+        self.archivo = archivo
+
+    def guardar(self, contenido: str) -> Path:
+        return guardar_html(contenido, self.archivo)

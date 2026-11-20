@@ -6,10 +6,15 @@ pasan los tests de contrato, que son intercambiables con las de producción
 
 Los dobles de ClienteHttp y del caché implementan solo los métodos del rol que
 cumplen: alcanza con eso para usarlos (segregación de interfaces).
+
+ProcesadorFalso, GuardadorEnMemoria y VisorFalso reemplazan a los detalles
+concretos (red, disco, navegador): como el código de alto nivel recibe sus
+dependencias, no hace falta monkeypatch (inversión de dependencias).
 """
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from bs4 import BeautifulSoup
 
@@ -95,3 +100,37 @@ class CacheEnMemoria:
 
     def actualizar(self, nuevos: dict[str, Articulo]) -> None:
         self.datos.update(nuevos)
+
+
+@dataclass
+class ProcesadorFalso:
+    """Cumple ProcesadorUrls sin red: devuelve el artículo configurado o None."""
+
+    articulos: dict[str, Articulo] = field(default_factory=dict)
+    pedidas: list[str] = field(default_factory=list)
+
+    async def procesar(self, urls: Sequence[str]) -> list[Articulo | None]:
+        self.pedidas.extend(urls)
+        return [self.articulos.get(url) for url in urls]
+
+
+@dataclass
+class GuardadorEnMemoria:
+    """Cumple GuardadorReporte sin tocar el disco."""
+
+    ruta: Path = Path("reporte-en-memoria.html")
+    contenidos: list[str] = field(default_factory=list)
+
+    def guardar(self, contenido: str) -> Path:
+        self.contenidos.append(contenido)
+        return self.ruta
+
+
+@dataclass
+class VisorFalso:
+    """Cumple Visor sin abrir nada: registra las rutas."""
+
+    abiertas: list[Path] = field(default_factory=list)
+
+    def abrir(self, ruta: Path) -> None:
+        self.abiertas.append(ruta)

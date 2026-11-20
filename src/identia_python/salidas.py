@@ -4,16 +4,19 @@ Salidas de los resultados (consola, reporte HTML, ...).
 Cada destino es una Salida. Para agregar uno nuevo (JSON, CSV, ...) se crea
 otra subclase y se la registra en la lista de salidas del cli, sin modificar
 el código que las recorre (principio Open/Closed).
+
+SalidaHtml no depende del disco ni del navegador sino de GuardadorReporte y
+Visor, definidos acá; las implementaciones concretas las arma el cli
+(principio de inversión de dependencias).
 """
 
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Protocol
 
-from identia_python import guardar_reporte
 from identia_python.modelos import Articulo
-from identia_python.navegador import abrir_en_navegador
 from identia_python.reporte_html import generar_html
 from identia_python.salida_consola import imprimir_resultados
 
@@ -47,19 +50,32 @@ class SalidaConsola(Salida):
         imprimir_resultados(urls, resultados)
 
 
-class SalidaHtml(Salida):
-    """Guarda un reporte HTML y, opcionalmente, lo abre en el navegador."""
+class GuardadorReporte(Protocol):
+    def guardar(self, contenido: str) -> Path:
+        """Guarda el reporte y devuelve dónde quedó."""
+        ...
 
-    def __init__(self, archivo: Path, abrir: bool = True) -> None:
-        self.archivo = archivo
-        self.abrir = abrir
+
+class Visor(Protocol):
+    def abrir(self, ruta: Path) -> None:
+        """Muestra el reporte guardado en la ruta."""
+        ...
+
+
+class SalidaHtml(Salida):
+    """
+    Genera un reporte HTML, lo guarda y, si hay visor, lo abre. No sabe dónde
+    se guarda ni cómo se abre: lo decide el guardador y el visor que recibe.
+    """
+
+    def __init__(self, guardador: GuardadorReporte, visor: Visor | None = None) -> None:
+        self.guardador = guardador
+        self.visor = visor
 
     def emitir(
         self, urls: Sequence[str], resultados: Sequence[Articulo | None]
     ) -> None:
-        ruta = guardar_reporte.guardar_html(
-            generar_html(urls, resultados), self.archivo
-        )
+        ruta = self.guardador.guardar(generar_html(urls, resultados))
         logger.info("Resultado guardado en %s", ruta)
-        if self.abrir:
-            abrir_en_navegador(ruta)
+        if self.visor is not None:
+            self.visor.abrir(ruta)

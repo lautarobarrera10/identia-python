@@ -45,7 +45,7 @@ Cada módulo tiene una única responsabilidad (principio S de SOLID):
 
 | Módulo | Responsabilidad |
 | --- | --- |
-| `cli.py` | Interpreta los argumentos y coordina los pasos. |
+| `cli.py` | Interpreta los argumentos, arma las dependencias concretas (raíz de composición) y coordina los pasos. |
 | `leer_urls.py` | Lee y limpia la lista de URLs. |
 | `resultados.py` | Decide qué URLs salen del caché y cuáles se procesan. |
 | `procesamiento.py` | Procesa las URLs en paralelo (descarga + parseo) con límite de concurrencia. |
@@ -124,10 +124,30 @@ Ningún código depende de métodos que no usa. Cada cliente pide una interfaz m
 | Cliente | Depende de | En lugar de |
 | --- | --- | --- |
 | `descargar_html`, `procesar_url` | `ClienteHttp` (`get`) y `RespuestaHttp` (`is_success`, `status_code`, `text`) | `httpx.AsyncClient` y `httpx.Response` enteros |
-| `obtener_resultados` | `LectorCache` (`cargar`) y `EscritorCache` (`actualizar`), por separado | todas las funciones del módulo `cache` |
+| `obtener_resultados` | `LectorCache` (`cargar`) y `EscritorCache` (`actualizar`), por separado (definidos en `resultados.py`) | todas las funciones del módulo `cache` |
 | `Salida.emitir`, `generar_html`, `imprimir_resultados`, `texto_resumen` | `Sequence` (solo lectura) | `list` (que también permite modificarla) |
 
 Así los dobles de prueba de `tests/dobles.py` implementan solo el rol que cumplen. Por ejemplo, con `--forzar` el caché no se lee, y `obtener_resultados` funciona con `CacheSoloEscritura`, que no tiene `cargar`.
+
+### Dependencias invertidas (principio D de SOLID)
+
+El código de alto nivel (las reglas: qué sale del caché, cómo se arma el reporte) no depende de los detalles (disco, red, navegador). Cada módulo de alto nivel **define** las abstracciones que necesita (`typing.Protocol`) y recibe las implementaciones concretas desde afuera. El único lugar que conoce los concretos es `cli.py` (la raíz de composición), que los crea y se los pasa.
+
+| Alto nivel | Depende de (abstracción propia) | Implementación concreta (armada en `cli.py`) |
+| --- | --- | --- |
+| `obtener_resultados` (`resultados.py`) | `LectorCache`, `EscritorCache`, `ProcesadorUrls` | `CacheJson`, `ProcesadorHttp` |
+| `ProcesadorHttp` (`procesamiento.py`) | una fábrica de `ClienteHttp` | `crear_cliente` (httpx) |
+| `SalidaHtml` (`salidas.py`) | `GuardadorReporte`, `Visor` | `ReporteEnArchivo`, `NavegadorWeb` |
+
+La flecha de dependencia apunta hacia las abstracciones: `CacheJson`, `ReporteEnArchivo` y `NavegadorWeb` cumplen los Protocols sin importarlos, y `resultados.py` y `salidas.py` no importan ningún módulo de detalle (lo verifica `tests/test_dependencias.py`).
+
+Así se puede cambiar un detalle sin tocar las reglas (p. ej. un caché en SQLite, o guardar el reporte en S3) y los tests reemplazan red, disco y navegador pasando dobles (`ProcesadorFalso`, `GuardadorEnMemoria`, `VisorFalso`, en `tests/dobles.py`) en lugar de usar `monkeypatch`:
+
+```python
+from identia_python.salidas import SalidaHtml
+
+SalidaHtml(GuardadorEnMemoria(), VisorFalso()).emitir(urls, resultados)
+```
 
 ## Desarrollo
 

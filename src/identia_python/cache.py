@@ -5,14 +5,15 @@ se vuelven a intentar en la próxima ejecución.
 
 Quien usa el caché depende solo del rol que necesita: LectorCache (cargar) o
 EscritorCache (actualizar), no de todas las operaciones (principio de
-segregación de interfaces). CacheJson cumple los dos.
+segregación de interfaces). Esos roles los define quien los usa
+(resultados.py); CacheJson los cumple sin importarlos (inversión de
+dependencias).
 """
 
 import json
 import logging
 from dataclasses import asdict
 from pathlib import Path
-from typing import Protocol
 
 from identia_python.modelos import Articulo
 
@@ -58,18 +59,6 @@ def actualizar_cache(nuevos: dict[str, Articulo], archivo: Path | None = None) -
     cache = cargar_cache(archivo)
     cache.update(nuevos)
     return guardar_cache(cache, archivo)
-
-
-class LectorCache(Protocol):
-    def cargar(self) -> dict[str, Articulo]:
-        """Devuelve los artículos guardados (url -> artículo)."""
-        ...
-
-
-class EscritorCache(Protocol):
-    def actualizar(self, nuevos: dict[str, Articulo]) -> None:
-        """Agrega (o reemplaza) los artículos, conservando los demás."""
-        ...
 
 
 class CacheJson:

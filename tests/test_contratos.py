@@ -23,6 +23,7 @@ from dobles import (
 from identia_python import procesamiento
 from identia_python.descargar import ClienteHttp
 from identia_python.exceptions import DescargaHtmlError, IdentiaError, ParseoHtmlError
+from identia_python.guardar_reporte import ReporteEnArchivo
 from identia_python.modelos import Articulo
 from identia_python.primer_parrafo import (
     ExtractorParrafo,
@@ -130,7 +131,7 @@ FabricaSalida = Callable[[Path], Salida]
 
 FABRICAS_SALIDA: list[FabricaSalida] = [
     lambda _: SalidaConsola(),
-    lambda tmp: SalidaHtml(tmp / "reporte.html", abrir=False),
+    lambda tmp: SalidaHtml(ReporteEnArchivo(tmp / "reporte.html")),
     lambda _: SalidaEnMemoria(),
 ]
 NOMBRES_SALIDA = ["SalidaConsola", "SalidaHtml", "SalidaEnMemoria"]

@@ -1,5 +1,10 @@
 """
 Interfaz de línea de comandos: interpreta los argumentos y coordina los pasos.
+
+Es la raíz de composición: el único lugar que conoce las implementaciones
+concretas (caché JSON, cliente HTTP, archivo, navegador) y se las pasa al
+código de alto nivel, que solo depende de abstracciones (principio de
+inversión de dependencias).
 """
 
 import argparse
@@ -8,7 +13,11 @@ import sys
 from pathlib import Path
 
 from identia_python import guardar_reporte, logging_config
+from identia_python.cache import CacheJson
+from identia_python.guardar_reporte import ReporteEnArchivo
 from identia_python.leer_urls import leer_urls
+from identia_python.navegador import NavegadorWeb
+from identia_python.procesamiento import ProcesadorHttp
 from identia_python.resultados import obtener_resultados
 from identia_python.salidas import Salida, SalidaConsola, SalidaHtml
 
@@ -76,7 +85,10 @@ def _crear_salidas(args: argparse.Namespace) -> list[Salida]:
     """Destinos de los resultados. Para agregar uno nuevo, sumarlo a esta lista."""
     return [
         SalidaConsola(),
-        SalidaHtml(guardar_reporte.ARCHIVO_HTML, abrir=not args.no_abrir),
+        SalidaHtml(
+            ReporteEnArchivo(guardar_reporte.ARCHIVO_HTML),
+            visor=None if args.no_abrir else NavegadorWeb(),
+        ),
     ]
 
 
@@ -87,7 +99,14 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     urls = _cargar_urls_o_salir(args.archivo)
-    resultados = obtener_resultados(urls, forzar=args.forzar)
+    cache = CacheJson()
+    resultados = obtener_resultados(
+        urls,
+        forzar=args.forzar,
+        lector=cache,
+        escritor=cache,
+        procesador=ProcesadorHttp(),
+    )
 
     for salida in _crear_salidas(args):
         salida.emitir(urls, resultados)

@@ -1,9 +1,11 @@
 from pathlib import Path
 
 import pytest
-from dobles import SalidaEnMemoria
+from dobles import GuardadorEnMemoria, SalidaEnMemoria, VisorFalso
 
+from identia_python.guardar_reporte import ReporteEnArchivo
 from identia_python.modelos import Articulo
+from identia_python.navegador import NavegadorWeb
 from identia_python.salidas import Salida, SalidaConsola, SalidaHtml
 
 URLS = ["https://a.com", "https://b.com"]
@@ -34,7 +36,7 @@ def test_salida_consola(capsys: pytest.CaptureFixture[str]) -> None:
 def test_salida_html_sin_abrir(tmp_path: Path, navegador_falso: list[str]) -> None:
     archivo = tmp_path / "reporte.html"
 
-    SalidaHtml(archivo, abrir=False).emitir(URLS, RESULTADOS)
+    SalidaHtml(ReporteEnArchivo(archivo)).emitir(URLS, RESULTADOS)
 
     assert "Título A" in archivo.read_text(encoding="utf-8")
     assert navegador_falso == []
@@ -45,9 +47,21 @@ def test_salida_html_abre_el_navegador(
 ) -> None:
     archivo = tmp_path / "reporte.html"
 
-    SalidaHtml(archivo).emitir(URLS, RESULTADOS)
+    SalidaHtml(ReporteEnArchivo(archivo), NavegadorWeb()).emitir(URLS, RESULTADOS)
 
     assert navegador_falso == [archivo.resolve().as_uri()]
+
+
+def test_salida_html_con_dependencias_inyectadas() -> None:
+    """Sin disco ni navegador: SalidaHtml solo conoce las abstracciones."""
+    guardador = GuardadorEnMemoria()
+    visor = VisorFalso()
+
+    SalidaHtml(guardador, visor).emitir(URLS, RESULTADOS)
+
+    assert len(guardador.contenidos) == 1
+    assert "Título A" in guardador.contenidos[0]
+    assert visor.abiertas == [guardador.ruta]
 
 
 def test_no_se_puede_instanciar_la_abstraccion() -> None:

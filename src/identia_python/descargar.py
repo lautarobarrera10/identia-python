@@ -1,8 +1,13 @@
 """
 Descargar el html de una url
+
+descargar_html no depende de httpx.AsyncClient entero sino de ClienteHttp, que
+tiene solo lo que usa: get(url) y tres datos de la respuesta (principio de
+segregación de interfaces). httpx.AsyncClient lo cumple sin adaptarlo.
 """
 
 import logging
+from typing import Protocol
 
 import httpx
 
@@ -23,6 +28,25 @@ HEADERS = {
 }
 
 
+class RespuestaHttp(Protocol):
+    """Lo único que descargar_html lee de una respuesta."""
+
+    @property
+    def is_success(self) -> bool: ...
+
+    @property
+    def status_code(self) -> int: ...
+
+    @property
+    def text(self) -> str: ...
+
+
+class ClienteHttp(Protocol):
+    """Lo único que descargar_html usa de un cliente HTTP."""
+
+    async def get(self, url: str) -> RespuestaHttp: ...
+
+
 def crear_cliente(
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> httpx.AsyncClient:
@@ -38,7 +62,7 @@ def crear_cliente(
     )
 
 
-async def descargar_html(url: str, cliente: httpx.AsyncClient) -> str:
+async def descargar_html(url: str, cliente: ClienteHttp) -> str:
     """
     Descarga el html de una url y lo devuelve como un string.
     Sigue redirecciones. Lanza DescargaHtmlError si la respuesta no es exitosa

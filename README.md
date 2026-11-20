@@ -117,6 +117,18 @@ Los errores propios heredan de `IdentiaError` (`DescargaHtmlError`, `ParseoHtmlE
 
 Toda subclase nueva tiene que pasar los tests de `tests/test_contratos.py`. Para sumarla, agregala a la lista de parametrización que corresponda (`EXTRACTORES_TITULO`, `EXTRACTORES_PARRAFO` o `FABRICAS_SALIDA`). Las implementaciones de ejemplo que usan los tests están en `tests/dobles.py`.
 
+### Interfaces chicas por rol (principio I de SOLID)
+
+Ningún código depende de métodos que no usa. Cada cliente pide una interfaz mínima (`typing.Protocol`) con solo lo que necesita. Como los Protocols son estructurales, cualquier objeto con esos métodos los cumple sin heredar de nada; `httpx.AsyncClient`, por ejemplo, cumple `ClienteHttp` tal como viene.
+
+| Cliente | Depende de | En lugar de |
+| --- | --- | --- |
+| `descargar_html`, `procesar_url` | `ClienteHttp` (`get`) y `RespuestaHttp` (`is_success`, `status_code`, `text`) | `httpx.AsyncClient` y `httpx.Response` enteros |
+| `obtener_resultados` | `LectorCache` (`cargar`) y `EscritorCache` (`actualizar`), por separado | todas las funciones del módulo `cache` |
+| `Salida.emitir`, `generar_html`, `imprimir_resultados`, `texto_resumen` | `Sequence` (solo lectura) | `list` (que también permite modificarla) |
+
+Así los dobles de prueba de `tests/dobles.py` implementan solo el rol que cumplen. Por ejemplo, con `--forzar` el caché no se lee, y `obtener_resultados` funciona con `CacheSoloEscritura`, que no tiene `cargar`.
+
 ## Desarrollo
 
 ```bash

@@ -2,6 +2,7 @@
 Generación del contenido del reporte HTML con los resultados.
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from html import escape
 
@@ -56,7 +57,7 @@ def _tarjeta(i: int, url: str, articulo: Articulo | None) -> str:
     )
 
 
-def generar_html(urls: list[str], resultados: list[Articulo | None]) -> str:
+def generar_html(urls: Sequence[str], resultados: Sequence[Articulo | None]) -> str:
     """Arma una página HTML autocontenida con un resultado por url, en orden."""
     fecha = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     resumen = texto_resumen(resultados)

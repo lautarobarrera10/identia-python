@@ -5,9 +5,12 @@ Procesamiento concurrente de urls: descarga y parseo de cada noticia.
 import asyncio
 import logging
 
-import httpx
-
-from identia_python.descargar import MAX_CONCURRENCIA, crear_cliente, descargar_html
+from identia_python.descargar import (
+    MAX_CONCURRENCIA,
+    ClienteHttp,
+    crear_cliente,
+    descargar_html,
+)
 from identia_python.exceptions import IdentiaError
 from identia_python.modelos import Articulo
 from identia_python.parsear import parsear_articulo
@@ -19,7 +22,7 @@ async def procesar_url(
     url: str,
     i: int,
     total: int,
-    cliente: httpx.AsyncClient,
+    cliente: ClienteHttp,
     semaforo: asyncio.Semaphore,
 ) -> Articulo | None:
     """Descarga y parsea una url. Devuelve None (y loguea) si falla."""

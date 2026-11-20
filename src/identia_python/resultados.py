@@ -5,19 +5,30 @@ Obtención de los resultados de una lista de urls, usando el caché.
 import asyncio
 import logging
 
-from identia_python import cache
+from identia_python.cache import CacheJson, EscritorCache, LectorCache
 from identia_python.modelos import Articulo
 from identia_python.procesamiento import procesar_urls
 
 logger = logging.getLogger(__name__)
 
 
-def obtener_resultados(urls: list[str], forzar: bool) -> list[Articulo | None]:
+def obtener_resultados(
+    urls: list[str],
+    forzar: bool,
+    lector: LectorCache | None = None,
+    escritor: EscritorCache | None = None,
+) -> list[Articulo | None]:
     """
     Devuelve un resultado por url, en orden. Las urls que ya están en el caché
     se toman de ahí sin descargarse; el resto se procesa y se agrega al caché.
+    Con forzar no se lee el caché, así que el lector no se usa.
+    Por defecto lector y escritor son el caché JSON.
     """
-    disponibles = {} if forzar else cache.cargar_cache()
+    if lector is None:
+        lector = CacheJson()
+    if escritor is None:
+        escritor = CacheJson()
+    disponibles = {} if forzar else lector.cargar()
     pendientes = [url for url in urls if url not in disponibles]
     en_cache = len(urls) - len(pendientes)
     if en_cache:
@@ -30,7 +41,7 @@ def obtener_resultados(urls: list[str], forzar: bool) -> list[Articulo | None]:
             for url, articulo in zip(pendientes, procesados, strict=True)
             if articulo is not None
         }
-        cache.actualizar_cache(nuevos)
+        escritor.actualizar(nuevos)
         disponibles.update(nuevos)
     else:
         logger.info("Todas las urls ya estaban procesadas, no se descarga nada")

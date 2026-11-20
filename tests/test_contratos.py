@@ -11,12 +11,17 @@ import asyncio
 from collections.abc import Callable
 from pathlib import Path
 
-import httpx
 import pytest
 from bs4 import BeautifulSoup
-from dobles import ParrafoDesdeResumen, SalidaEnMemoria, TituloDesdeTwitter
+from dobles import (
+    ClienteFalso,
+    ParrafoDesdeResumen,
+    SalidaEnMemoria,
+    TituloDesdeTwitter,
+)
 
 from identia_python import procesamiento
+from identia_python.descargar import ClienteHttp
 from identia_python.exceptions import DescargaHtmlError, IdentiaError, ParseoHtmlError
 from identia_python.modelos import Articulo
 from identia_python.primer_parrafo import (
@@ -176,16 +181,15 @@ def test_procesar_url_maneja_cualquier_identia_error(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    async def descargar_que_falla(url: str, cliente: httpx.AsyncClient) -> str:
+    async def descargar_que_falla(url: str, cliente: ClienteHttp) -> str:
         raise error("falló")
 
     monkeypatch.setattr(procesamiento, "descargar_html", descargar_que_falla)
 
     async def correr() -> Articulo | None:
-        async with httpx.AsyncClient() as cliente:
-            return await procesamiento.procesar_url(
-                "https://a.com", 1, 1, cliente, asyncio.Semaphore(1)
-            )
+        return await procesamiento.procesar_url(
+            "https://a.com", 1, 1, ClienteFalso(), asyncio.Semaphore(1)
+        )
 
     assert asyncio.run(correr()) is None
     # Se trata como error esperable, no como "Error inesperado"

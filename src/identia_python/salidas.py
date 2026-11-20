@@ -8,6 +8,7 @@ el código que las recorre (principio Open/Closed).
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from pathlib import Path
 
 from identia_python import guardar_reporte
@@ -23,9 +24,12 @@ class Salida(ABC):
     """Destino al que se envían los resultados de una ejecución."""
 
     @abstractmethod
-    def emitir(self, urls: list[str], resultados: list[Articulo | None]) -> None:
+    def emitir(
+        self, urls: Sequence[str], resultados: Sequence[Articulo | None]
+    ) -> None:
         """
-        Presenta los resultados (uno por url, en el mismo orden).
+        Presenta los resultados (uno por url, en el mismo orden). Recibe
+        Sequence y no list: solo puede leerlas (segregación de interfaces).
 
         Contrato que toda subclase debe respetar:
         - Precondición: len(urls) == len(resultados). Las listas pueden estar
@@ -37,7 +41,9 @@ class Salida(ABC):
 class SalidaConsola(Salida):
     """Imprime los resultados y el resumen por stdout."""
 
-    def emitir(self, urls: list[str], resultados: list[Articulo | None]) -> None:
+    def emitir(
+        self, urls: Sequence[str], resultados: Sequence[Articulo | None]
+    ) -> None:
         imprimir_resultados(urls, resultados)
 
 
@@ -48,7 +54,9 @@ class SalidaHtml(Salida):
         self.archivo = archivo
         self.abrir = abrir
 
-    def emitir(self, urls: list[str], resultados: list[Articulo | None]) -> None:
+    def emitir(
+        self, urls: Sequence[str], resultados: Sequence[Articulo | None]
+    ) -> None:
         ruta = guardar_reporte.guardar_html(
             generar_html(urls, resultados), self.archivo
         )

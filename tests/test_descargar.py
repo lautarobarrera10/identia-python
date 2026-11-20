@@ -4,8 +4,9 @@ from collections.abc import Callable
 
 import httpx
 import pytest
+from dobles import ClienteFalso, RespuestaFalsa
 
-from identia_python.descargar import crear_cliente, descargar_html
+from identia_python.descargar import ClienteHttp, crear_cliente, descargar_html
 from identia_python.exceptions import DescargaHtmlError
 
 
@@ -68,3 +69,28 @@ def test_loguea_warning_antes_de_fallar(caplog: pytest.LogCaptureFixture) -> Non
         (r.name, r.levelno) for r in caplog.records
     ]
     assert "Status 500 al descargar https://x.com" in caplog.text
+
+
+# --- Segregación de interfaces: alcanza con un objeto que tenga get ----------
+
+
+def test_funciona_con_cualquier_cliente_que_tenga_get() -> None:
+    cliente = ClienteFalso(RespuestaFalsa(200, "<p>falso</p>"))
+
+    assert asyncio.run(descargar_html("https://x.com", cliente)) == "<p>falso</p>"
+    assert cliente.pedidas == ["https://x.com"]
+
+
+def test_error_por_status_con_cliente_falso() -> None:
+    cliente = ClienteFalso(RespuestaFalsa(503))
+
+    with pytest.raises(DescargaHtmlError, match="status code: 503"):
+        asyncio.run(descargar_html("https://x.com", cliente))
+
+
+def test_httpx_cumple_cliente_http() -> None:
+    # Lo chequea mypy: si httpx.AsyncClient no cumpliera, esta línea no tipa
+    real = crear_cliente()
+    cliente: ClienteHttp = real
+    assert cliente is real
+    asyncio.run(real.aclose())

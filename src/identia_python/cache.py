@@ -2,12 +2,17 @@
 Caché de artículos ya procesados, guardado en un archivo JSON (url -> artículo).
 Solo se guardan los artículos procesados correctamente: las urls que fallaron
 se vuelven a intentar en la próxima ejecución.
+
+Quien usa el caché depende solo del rol que necesita: LectorCache (cargar) o
+EscritorCache (actualizar), no de todas las operaciones (principio de
+segregación de interfaces). CacheJson cumple los dos.
 """
 
 import json
 import logging
 from dataclasses import asdict
 from pathlib import Path
+from typing import Protocol
 
 from identia_python.modelos import Articulo
 
@@ -53,3 +58,29 @@ def actualizar_cache(nuevos: dict[str, Articulo], archivo: Path | None = None) -
     cache = cargar_cache(archivo)
     cache.update(nuevos)
     return guardar_cache(cache, archivo)
+
+
+class LectorCache(Protocol):
+    def cargar(self) -> dict[str, Articulo]:
+        """Devuelve los artículos guardados (url -> artículo)."""
+        ...
+
+
+class EscritorCache(Protocol):
+    def actualizar(self, nuevos: dict[str, Articulo]) -> None:
+        """Agrega (o reemplaza) los artículos, conservando los demás."""
+        ...
+
+
+class CacheJson:
+    """Caché en un archivo JSON. Cumple LectorCache y EscritorCache."""
+
+    def __init__(self, archivo: Path | None = None) -> None:
+        # None: se usa ARCHIVO_CACHE en el momento de leer o escribir
+        self.archivo = archivo
+
+    def cargar(self) -> dict[str, Articulo]:
+        return cargar_cache(self.archivo)
+
+    def actualizar(self, nuevos: dict[str, Articulo]) -> None:
+        actualizar_cache(nuevos, self.archivo)

@@ -1,6 +1,6 @@
 # identia-python
 
-Descarga noticias a partir de una lista de URLs y extrae de cada una el **título** y el **primer párrafo** (o la bajada).
+Interfaz web local para generar reportes de noticias: pegás una lista de URLs y de cada una se extrae el **título** y el **primer párrafo** (o la bajada).
 
 ## Requisitos
 
@@ -10,34 +10,29 @@ Descarga noticias a partir de una lista de URLs y extrae de cada una el **títul
 ## Instalación
 
 ```bash
-uv sync
+make install    # o: uv sync
 ```
 
 ## Uso
 
-Agregá las URLs en `urls.txt`, una por línea. Las líneas vacías, las que empiezan con `#` y las URLs repetidas se ignoran.
-
 ```bash
-uv run identia-python              # lee ./urls.txt
-uv run identia-python otro.txt     # lee otro archivo
-uv run python -m identia_python    # equivalente
-uv run identia-python --no-abrir   # genera el HTML sin abrir el navegador
-uv run identia-python --forzar     # ignora el caché y vuelve a procesar todo
+make run                                # levanta la interfaz web en http://127.0.0.1:8000
+uv run identia-python --puerto 9000     # otro puerto
+uv run identia-python --no-abrir        # no abre el navegador al iniciar
+uv run identia-python -v                # muestra mensajes de depuración (-q: solo advertencias)
 ```
 
-Además de la salida por consola, cada ejecución guarda el resultado en `resultados/resultado.html` (se sobrescribe) y lo abre automáticamente en el navegador predeterminado.
+Al iniciar se abre el navegador con un formulario:
 
-Las noticias procesadas correctamente se guardan en `resultados/cache.json`. En las siguientes ejecuciones, las URLs que ya están en el caché no se vuelven a descargar: se muestra lo guardado y solo se procesan las URLs nuevas (o las que fallaron antes). Para volver a procesar todo, usá `--forzar` o borrá el archivo.
+1. Pegá las URLs, una por línea. Las líneas vacías, las que empiezan con `#` y las URLs repetidas se ignoran.
+2. Tocá **Generar reporte**. El reporte se muestra en la misma página, con un enlace **← Nuevo reporte** para volver al formulario.
+3. Para detener el servidor, `Ctrl+C` en la terminal.
 
-Ejemplo de salida:
+Cada reporte también se guarda en `resultados/resultado.html` (se sobrescribe).
 
-```
-[1/3] https://www.infobae.com/economia/...
-  Título: ...
-  Primer párrafo: ...
+Las noticias procesadas correctamente se guardan en `resultados/cache.json`. En los siguientes reportes, las URLs que ya están en el caché no se vuelven a descargar: se muestra lo guardado y solo se procesan las URLs nuevas (o las que fallaron antes). Para volver a procesar todo, marcá **Ignorar el caché** en el formulario o borrá el archivo.
 
-Procesadas 3/3 noticias correctamente.
-```
+Los mensajes se muestran en la terminal y se guardan con más detalle en `logs/identia.log`.
 
 ## Cómo funciona
 
@@ -45,24 +40,25 @@ Cada módulo tiene una única responsabilidad (principio S de SOLID):
 
 | Módulo | Responsabilidad |
 | --- | --- |
-| `cli.py` | Interpreta los argumentos, arma las dependencias concretas (raíz de composición) y coordina los pasos. |
-| `leer_urls.py` | Lee y limpia la lista de URLs. |
+| `cli.py` | Interpreta los argumentos, arma las dependencias concretas (raíz de composición) y levanta el servidor. |
+| `servidor.py` | Servidor web local (`http.server`): formulario en `GET /` y reporte en `POST /reporte`. |
+| `pagina_formulario.py` | Genera la página del formulario. |
+| `limpiar_urls.py` | Limpia la lista de URLs (vacías, comentarios, repetidas). |
+| `generador.py` | Obtiene los resultados, arma el reporte HTML y lo guarda (`GeneradorConCache`). |
 | `resultados.py` | Decide qué URLs salen del caché y cuáles se procesan. |
 | `procesamiento.py` | Procesa las URLs en paralelo (descarga + parseo) con límite de concurrencia. |
 | `descargar.py` | Descarga el HTML (sigue redirecciones, timeout de 15s, envía User-Agent). |
 | `parsear.py` | Arma el `Articulo` a partir del HTML y valida que esté completo. |
 | `titulo.py` | Extrae el título con extractores intercambiables (`<h1>` → `og:title` → `<title>`). |
 | `primer_parrafo.py` | Extrae la bajada o el primer párrafo significativo, priorizando `<article>`, con extractores intercambiables. |
-| `salidas.py` | Destinos de los resultados (`SalidaConsola`, `SalidaHtml`). |
 | `selectores.py` | Selectores de bajada específicos por sitio. |
 | `texto_html.py` | Normaliza el texto de los elementos HTML. |
 | `modelos.py` | Modelo `Articulo`. |
 | `cache.py` | Guarda y lee los artículos ya procesados (`resultados/cache.json`). |
-| `salida_consola.py` | Imprime los resultados por consola. |
 | `reporte_html.py` | Genera el contenido del reporte HTML. |
+| `resumen.py` | Texto del resumen del reporte ("Procesadas X/Y…"). |
 | `guardar_reporte.py` | Escribe el reporte en `resultados/resultado.html`. |
-| `navegador.py` | Abre el reporte en el navegador. |
-| `resumen.py` | Texto del resumen ("Procesadas X/Y…"), compartido por consola y HTML. |
+| `navegador.py` | Abre la interfaz en el navegador al iniciar. |
 | `logging_config.py` | Configura el logging. |
 | `exceptions.py` | `DescargaHtmlError` y `ParseoHtmlError`. |
 
@@ -76,30 +72,24 @@ Los puntos de variación están definidos como clases abstractas (`abc.ABC`). Pa
 | --- | --- | --- |
 | `ExtractorTitulo` (`titulo.py`) | `TituloDesdeH1`, `TituloDesdeOgTitle`, `TituloDesdeTitle` | `EXTRACTORES_TITULO` (en orden de prioridad) |
 | `ExtractorParrafo` (`primer_parrafo.py`) | `ParrafoPorSelectorDeSitio`, `PrimerParrafoSignificativo` | `extractores_por_defecto()` |
-| `Salida` (`salidas.py`) | `SalidaConsola`, `SalidaHtml` | `_crear_salidas()` en `cli.py` |
 
-Por ejemplo, para exportar los resultados a JSON:
+Por ejemplo, una nueva fuente de título (`twitter:title`):
 
 ```python
-import json
-from pathlib import Path
+from bs4 import BeautifulSoup
 
-from identia_python.salidas import Salida
+from identia_python.texto_html import texto_o_none
+from identia_python.titulo import ExtractorTitulo
 
 
-class SalidaJson(Salida):
-    def __init__(self, archivo: Path) -> None:
-        self.archivo = archivo
-
-    def emitir(self, urls, resultados) -> None:
-        datos = {
-            url: vars(articulo) if articulo else None
-            for url, articulo in zip(urls, resultados, strict=True)
-        }
-        self.archivo.write_text(json.dumps(datos, ensure_ascii=False), encoding="utf-8")
+class TituloDesdeTwitter(ExtractorTitulo):
+    def extraer(self, soup: BeautifulSoup) -> str | None:
+        meta = soup.find("meta", attrs={"name": "twitter:title"})
+        contenido = meta.get("content") if meta else None
+        return texto_o_none(str(contenido)) if contenido is not None else None
 ```
 
-y sumar `SalidaJson(Path("resultados/resultado.json"))` a la lista de `_crear_salidas()`. Del mismo modo, una nueva fuente de título (p. ej. `twitter:title`) es una subclase de `ExtractorTitulo` agregada a `EXTRACTORES_TITULO`.
+y sumarla a `EXTRACTORES_TITULO`.
 
 ### Subclases intercambiables (principio L de SOLID)
 
@@ -109,13 +99,12 @@ Cualquier subclase tiene que poder reemplazar a otra sin que el código que la u
 | --- | --- | --- | --- |
 | `ExtractorTitulo.extraer(soup)` | Cualquier soup, aunque esté vacío o le falten etiquetas. | Texto no vacío y con los espacios normalizados, o `None`. | Devolver `""` ni lanzar excepciones si falta la etiqueta. |
 | `ExtractorParrafo.extraer(soup, url)` | Cualquier soup y cualquier url, aunque sea de un sitio sin selector o esté mal formada. | Texto no vacío (una o más líneas, cada una normalizada), o `None`. | Devolver `""` ni lanzar excepciones si falta el elemento. |
-| `Salida.emitir(urls, resultados)` | Listas del mismo largo, incluso vacías o solo con `None`. | Devuelve `None`. | Modificar las listas recibidas ni exigir más que lo anterior. |
 
 Gracias a esto, `obtener_titulo` y `obtener_primer_parrafo` confían en el contrato (`is not None`) en lugar de defenderse de resultados raros.
 
 Los errores propios heredan de `IdentiaError` (`DescargaHtmlError`, `ParseoHtmlError`). `procesamiento.py` atrapa `IdentiaError`, así que un error nuevo que herede de ella se maneja sin cambios.
 
-Toda subclase nueva tiene que pasar los tests de `tests/test_contratos.py`. Para sumarla, agregala a la lista de parametrización que corresponda (`EXTRACTORES_TITULO`, `EXTRACTORES_PARRAFO` o `FABRICAS_SALIDA`). Las implementaciones de ejemplo que usan los tests están en `tests/dobles.py`.
+Toda subclase nueva tiene que pasar los tests de `tests/test_contratos.py`. Para sumarla, agregala a `EXTRACTORES_TITULO` o `EXTRACTORES_PARRAFO` en ese archivo. Las implementaciones de ejemplo que usan los tests están en `tests/dobles.py`.
 
 ### Interfaces chicas por rol (principio I de SOLID)
 
@@ -125,34 +114,42 @@ Ningún código depende de métodos que no usa. Cada cliente pide una interfaz m
 | --- | --- | --- |
 | `descargar_html`, `procesar_url` | `ClienteHttp` (`get`) y `RespuestaHttp` (`is_success`, `status_code`, `text`) | `httpx.AsyncClient` y `httpx.Response` enteros |
 | `obtener_resultados` | `LectorCache` (`cargar`) y `EscritorCache` (`actualizar`), por separado (definidos en `resultados.py`) | todas las funciones del módulo `cache` |
-| `Salida.emitir`, `generar_html`, `imprimir_resultados`, `texto_resumen` | `Sequence` (solo lectura) | `list` (que también permite modificarla) |
+| `generar_html`, `texto_resumen` | `Sequence` (solo lectura) | `list` (que también permite modificarla) |
 
-Así los dobles de prueba de `tests/dobles.py` implementan solo el rol que cumplen. Por ejemplo, con `--forzar` el caché no se lee, y `obtener_resultados` funciona con `CacheSoloEscritura`, que no tiene `cargar`.
+Así los dobles de prueba de `tests/dobles.py` implementan solo el rol que cumplen. Por ejemplo, con **Ignorar el caché** el caché no se lee, y `obtener_resultados` funciona con `CacheSoloEscritura`, que no tiene `cargar`.
 
 ### Dependencias invertidas (principio D de SOLID)
 
-El código de alto nivel (las reglas: qué sale del caché, cómo se arma el reporte) no depende de los detalles (disco, red, navegador). Cada módulo de alto nivel **define** las abstracciones que necesita (`typing.Protocol`) y recibe las implementaciones concretas desde afuera. El único lugar que conoce los concretos es `cli.py` (la raíz de composición), que los crea y se los pasa.
+El código de alto nivel (las reglas: qué sale del caché, cómo se arma el reporte, cómo se atiende un pedido) no depende de los detalles (disco, red). Cada módulo de alto nivel **define** las abstracciones que necesita (`typing.Protocol`) y recibe las implementaciones concretas desde afuera. El único lugar que conoce los concretos es `cli.py` (la raíz de composición), que los crea y se los pasa.
 
 | Alto nivel | Depende de (abstracción propia) | Implementación concreta (armada en `cli.py`) |
 | --- | --- | --- |
+| servidor web (`servidor.py`) | `GeneradorReporte` | `GeneradorConCache` |
+| `GeneradorConCache` (`generador.py`) | `LectorCache`, `EscritorCache`, `ProcesadorUrls`, `GuardadorReporte` | `CacheJson`, `ProcesadorHttp`, `ReporteEnArchivo` |
 | `obtener_resultados` (`resultados.py`) | `LectorCache`, `EscritorCache`, `ProcesadorUrls` | `CacheJson`, `ProcesadorHttp` |
 | `ProcesadorHttp` (`procesamiento.py`) | una fábrica de `ClienteHttp` | `crear_cliente` (httpx) |
-| `SalidaHtml` (`salidas.py`) | `GuardadorReporte`, `Visor` | `ReporteEnArchivo`, `NavegadorWeb` |
 
-La flecha de dependencia apunta hacia las abstracciones: `CacheJson`, `ReporteEnArchivo` y `NavegadorWeb` cumplen los Protocols sin importarlos, y `resultados.py` y `salidas.py` no importan ningún módulo de detalle (lo verifica `tests/test_dependencias.py`).
+La flecha de dependencia apunta hacia las abstracciones: `CacheJson` y `ReporteEnArchivo` cumplen los Protocols sin importarlos, y `servidor.py`, `generador.py` y `resultados.py` no importan ningún módulo de detalle (lo verifica `tests/test_dependencias.py`).
 
-Así se puede cambiar un detalle sin tocar las reglas (p. ej. un caché en SQLite, o guardar el reporte en S3) y los tests reemplazan red, disco y navegador pasando dobles (`ProcesadorFalso`, `GuardadorEnMemoria`, `VisorFalso`, en `tests/dobles.py`) en lugar de usar `monkeypatch`:
+Así se puede cambiar un detalle sin tocar las reglas (p. ej. un caché en SQLite, o guardar el reporte en S3) y los tests reemplazan red, disco y procesamiento pasando dobles (`ProcesadorFalso`, `CacheEnMemoria`, `GuardadorEnMemoria`, `GeneradorFalso`, en `tests/dobles.py`) en lugar de usar `monkeypatch`:
 
 ```python
-from identia_python.salidas import SalidaHtml
+from identia_python.generador import GeneradorConCache
 
-SalidaHtml(GuardadorEnMemoria(), VisorFalso()).emitir(urls, resultados)
+cache = CacheEnMemoria()
+generador = GeneradorConCache(
+    lector=cache,
+    escritor=cache,
+    procesador=ProcesadorFalso(),
+    guardador=GuardadorEnMemoria(),
+)
+html = generador.generar(urls, forzar=False)
 ```
 
 ## Desarrollo
 
 ```bash
-uv run pytest           # tests
+make test               # tests (o: uv run pytest)
 uv run ruff check .     # lint
 uv run ruff format .    # formato
 uv run mypy             # tipos

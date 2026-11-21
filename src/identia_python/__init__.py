@@ -6,7 +6,7 @@ import logging
 
 from .descargar import descargar_html
 from .exceptions import DescargaHtmlError, IdentiaError, ParseoHtmlError
-from .leer_urls import leer_urls
+from .limpiar_urls import limpiar_urls
 from .modelos import Articulo
 from .parsear import parsear_articulo
 
@@ -16,7 +16,7 @@ __all__ = [
     "IdentiaError",
     "ParseoHtmlError",
     "descargar_html",
-    "leer_urls",
+    "limpiar_urls",
     "parsear_articulo",
 ]
 

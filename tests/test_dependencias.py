@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from dobles import ClienteFalso, RespuestaFalsa
 
-from identia_python import resultados, salidas
+from identia_python import generador, resultados, servidor
 from identia_python.modelos import Articulo
 from identia_python.procesamiento import ProcesadorHttp
 
@@ -41,7 +41,9 @@ def _modulos_importados(ruta: Path) -> set[str]:
     return importados
 
 
-@pytest.mark.parametrize("modulo", [resultados, salidas], ids=lambda m: m.__name__)
+@pytest.mark.parametrize(
+    "modulo", [resultados, servidor, generador], ids=lambda m: m.__name__
+)
 def test_alto_nivel_no_importa_detalles(modulo: object) -> None:
     ruta = Path(str(getattr(modulo, "__file__", "")))
 

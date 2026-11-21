@@ -1,5 +1,5 @@
 """
-Resumen de una ejecución: cuántas noticias se procesaron correctamente.
+Resumen de un reporte: cuántas noticias se procesaron correctamente.
 """
 
 from collections.abc import Sequence

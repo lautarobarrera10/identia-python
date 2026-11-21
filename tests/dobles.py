@@ -7,8 +7,8 @@ pasan los tests de contrato, que son intercambiables con las de producción
 Los dobles de ClienteHttp y del caché implementan solo los métodos del rol que
 cumplen: alcanza con eso para usarlos (segregación de interfaces).
 
-ProcesadorFalso, GuardadorEnMemoria y VisorFalso reemplazan a los detalles
-concretos (red, disco, navegador): como el código de alto nivel recibe sus
+ProcesadorFalso, GuardadorEnMemoria y GeneradorFalso reemplazan a los detalles
+concretos (red, disco, procesamiento): como el código de alto nivel recibe sus
 dependencias, no hace falta monkeypatch (inversión de dependencias).
 """
 
@@ -20,7 +20,6 @@ from bs4 import BeautifulSoup
 
 from identia_python.modelos import Articulo
 from identia_python.primer_parrafo import ExtractorParrafo
-from identia_python.salidas import Salida
 from identia_python.texto_html import texto_o_none
 from identia_python.titulo import ExtractorTitulo
 
@@ -40,19 +39,6 @@ class ParrafoDesdeResumen(ExtractorParrafo):
     def extraer(self, soup: BeautifulSoup, url: str) -> str | None:
         div = soup.find("div", class_="resumen")
         return texto_o_none(div.get_text()) if div else None
-
-
-class SalidaEnMemoria(Salida):
-    """Salida nueva agregada sin modificar salidas.py."""
-
-    def __init__(self) -> None:
-        self.recibido: list[tuple[list[str], list[Articulo | None]]] = []
-
-    def emitir(
-        self, urls: Sequence[str], resultados: Sequence[Articulo | None]
-    ) -> None:
-        # Guarda copias: el contrato prohíbe depender de las listas recibidas
-        self.recibido.append((list(urls), list(resultados)))
 
 
 @dataclass
@@ -127,10 +113,12 @@ class GuardadorEnMemoria:
 
 
 @dataclass
-class VisorFalso:
-    """Cumple Visor sin abrir nada: registra las rutas."""
+class GeneradorFalso:
+    """Cumple GeneradorReporte sin procesar nada: registra los pedidos."""
 
-    abiertas: list[Path] = field(default_factory=list)
+    html: str = "<h1>Reporte falso</h1>"
+    pedidos: list[tuple[list[str], bool]] = field(default_factory=list)
 
-    def abrir(self, ruta: Path) -> None:
-        self.abiertas.append(ruta)
+    def generar(self, urls: Sequence[str], forzar: bool) -> str:
+        self.pedidos.append((list(urls), forzar))
+        return self.html

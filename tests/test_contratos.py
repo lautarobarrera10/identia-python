@@ -8,29 +8,24 @@ parametrización correspondiente y tiene que pasar los mismos tests.
 """
 
 import asyncio
-from collections.abc import Callable
-from pathlib import Path
 
 import pytest
 from bs4 import BeautifulSoup
 from dobles import (
     ClienteFalso,
     ParrafoDesdeResumen,
-    SalidaEnMemoria,
     TituloDesdeTwitter,
 )
 
 from identia_python import procesamiento
 from identia_python.descargar import ClienteHttp
 from identia_python.exceptions import DescargaHtmlError, IdentiaError, ParseoHtmlError
-from identia_python.guardar_reporte import ReporteEnArchivo
 from identia_python.modelos import Articulo
 from identia_python.primer_parrafo import (
     ExtractorParrafo,
     ParrafoPorSelectorDeSitio,
     PrimerParrafoSignificativo,
 )
-from identia_python.salidas import Salida, SalidaConsola, SalidaHtml
 from identia_python.titulo import (
     ExtractorTitulo,
     TituloDesdeH1,
@@ -123,45 +118,6 @@ def test_extractor_parrafo_cumple_el_contrato(
     extractor: ExtractorParrafo, html: str, url: str
 ) -> None:
     _cumple_contrato_de_texto(extractor.extraer(BeautifulSoup(html, "lxml"), url))
-
-
-# --- Salidas ------------------------------------------------------------------
-
-FabricaSalida = Callable[[Path], Salida]
-
-FABRICAS_SALIDA: list[FabricaSalida] = [
-    lambda _: SalidaConsola(),
-    lambda tmp: SalidaHtml(ReporteEnArchivo(tmp / "reporte.html")),
-    lambda _: SalidaEnMemoria(),
-]
-NOMBRES_SALIDA = ["SalidaConsola", "SalidaHtml", "SalidaEnMemoria"]
-
-ENTRADAS_VALIDAS: dict[str, tuple[list[str], list[Articulo | None]]] = {
-    "vacias": ([], []),
-    "solo_none": (["https://a.com", "https://b.com"], [None, None]),
-    "mixtas": (
-        ["https://a.com", "https://b.com"],
-        [Articulo(titulo="T", primer_parrafo="P\nQ"), None],
-    ),
-}
-
-
-@pytest.mark.parametrize("fabrica", FABRICAS_SALIDA, ids=NOMBRES_SALIDA)
-@pytest.mark.parametrize(
-    "entrada", ENTRADAS_VALIDAS.values(), ids=ENTRADAS_VALIDAS.keys()
-)
-def test_salida_cumple_el_contrato(
-    fabrica: FabricaSalida,
-    entrada: tuple[list[str], list[Articulo | None]],
-    tmp_path: Path,
-) -> None:
-    urls, resultados = entrada
-    copia_urls, copia_resultados = list(urls), list(resultados)
-
-    fabrica(tmp_path).emitir(urls, resultados)  # no lanza con entradas válidas
-
-    assert urls == copia_urls
-    assert resultados == copia_resultados
 
 
 # --- Excepciones --------------------------------------------------------------

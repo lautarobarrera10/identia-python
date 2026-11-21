@@ -1,5 +1,5 @@
 """
-Interfaz de línea de comandos: interpreta los argumentos y coordina los pasos.
+Punto de entrada: interpreta los argumentos y levanta el servidor web local.
 
 Es la raíz de composición: el único lugar que conoce las implementaciones
 concretas (caché JSON, cliente HTTP, archivo, navegador) y se las pasa al
@@ -9,19 +9,17 @@ inversión de dependencias).
 
 import argparse
 import logging
-import sys
-from pathlib import Path
 
 from identia_python import guardar_reporte, logging_config
 from identia_python.cache import CacheJson
+from identia_python.generador import GeneradorConCache
 from identia_python.guardar_reporte import ReporteEnArchivo
-from identia_python.leer_urls import leer_urls
-from identia_python.navegador import NavegadorWeb
+from identia_python.navegador import abrir_url
 from identia_python.procesamiento import ProcesadorHttp
-from identia_python.resultados import obtener_resultados
-from identia_python.salidas import Salida, SalidaConsola, SalidaHtml
+from identia_python.servidor import crear_servidor
 
-ARCHIVO_URLS = "urls.txt"
+HOST = "127.0.0.1"
+PUERTO = 8000
 
 logger = logging.getLogger(__name__)
 
@@ -29,15 +27,19 @@ logger = logging.getLogger(__name__)
 def _crear_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="identia-python",
-        description="Descarga noticias y extrae su título y primer párrafo.",
+        description=(
+            "Levanta una interfaz web local para descargar noticias y extraer "
+            "su título y primer párrafo."
+        ),
     )
-    # Por defecto lee urls.txt en el directorio desde donde se ejecuta
     parser.add_argument(
-        "archivo",
-        nargs="?",
-        type=Path,
-        default=Path.cwd() / ARCHIVO_URLS,
-        help=f"archivo con una url por línea (por defecto: ./{ARCHIVO_URLS})",
+        "--host", default=HOST, help=f"dirección del servidor (por defecto: {HOST})"
+    )
+    parser.add_argument(
+        "--puerto",
+        type=int,
+        default=PUERTO,
+        help=f"puerto del servidor (por defecto: {PUERTO})",
     )
     nivel = parser.add_mutually_exclusive_group()
     nivel.add_argument(
@@ -49,12 +51,7 @@ def _crear_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-abrir",
         action="store_true",
-        help="generar el reporte HTML sin abrirlo en el navegador",
-    )
-    parser.add_argument(
-        "--forzar",
-        action="store_true",
-        help="ignorar el caché y volver a procesar todas las urls",
+        help="no abrir la interfaz en el navegador al iniciar",
     )
     return parser
 
@@ -68,28 +65,15 @@ def _nivel_de_consola(args: argparse.Namespace) -> int:
     return logging.INFO
 
 
-def _cargar_urls_o_salir(ruta: Path) -> list[str]:
-    """Lee las urls del archivo; si no existe o está vacío, termina con error."""
-    if not ruta.is_file():
-        logger.error("No se encontró el archivo de urls: %s", ruta)
-        sys.exit(1)
-
-    urls = leer_urls(ruta)
-    if not urls:
-        logger.error("El archivo %s no contiene urls.", ruta)
-        sys.exit(1)
-    return urls
-
-
-def _crear_salidas(args: argparse.Namespace) -> list[Salida]:
-    """Destinos de los resultados. Para agregar uno nuevo, sumarlo a esta lista."""
-    return [
-        SalidaConsola(),
-        SalidaHtml(
-            ReporteEnArchivo(guardar_reporte.ARCHIVO_HTML),
-            visor=None if args.no_abrir else NavegadorWeb(),
-        ),
-    ]
+def crear_generador() -> GeneradorConCache:
+    """Arma el generador de reportes con las implementaciones concretas."""
+    cache = CacheJson()
+    return GeneradorConCache(
+        lector=cache,
+        escritor=cache,
+        procesador=ProcesadorHttp(),
+        guardador=ReporteEnArchivo(guardar_reporte.ARCHIVO_HTML),
+    )
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -98,15 +82,16 @@ def main(argv: list[str] | None = None) -> None:
         _nivel_de_consola(args), archivo=logging_config.ARCHIVO_LOG
     )
 
-    urls = _cargar_urls_o_salir(args.archivo)
-    cache = CacheJson()
-    resultados = obtener_resultados(
-        urls,
-        forzar=args.forzar,
-        lector=cache,
-        escritor=cache,
-        procesador=ProcesadorHttp(),
-    )
+    servidor = crear_servidor(args.host, args.puerto, crear_generador())
+    # server_address[1] da el puerto real (útil si se pidió el 0)
+    url = f"http://{args.host}:{servidor.server_address[1]}/"
+    logger.info("Servidor en %s (Ctrl+C para salir)", url)
+    if not args.no_abrir:
+        abrir_url(url)
 
-    for salida in _crear_salidas(args):
-        salida.emitir(urls, resultados)
+    try:
+        servidor.serve_forever()
+    except KeyboardInterrupt:
+        logger.info("Servidor detenido")
+    finally:
+        servidor.server_close()

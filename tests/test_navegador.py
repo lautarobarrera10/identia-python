@@ -1,37 +1,21 @@
 import webbrowser
-from pathlib import Path
 
 import pytest
 
-from identia_python.navegador import NavegadorWeb, abrir_en_navegador
+from identia_python.navegador import abrir_url
 
 
-def test_abrir_en_navegador_usa_uri_file(
-    tmp_path: Path, navegador_falso: list[str]
-) -> None:
-    ruta = tmp_path / "r.html"
+def test_abrir_url(navegador_falso: list[str]) -> None:
+    abrir_url("http://127.0.0.1:8000/")
 
-    abrir_en_navegador(ruta)
-
-    assert navegador_falso == [ruta.resolve().as_uri()]
-    assert navegador_falso[0].startswith("file://")
+    assert navegador_falso == ["http://127.0.0.1:8000/"]
 
 
-def test_abrir_en_navegador_avisa_si_falla(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
+def test_abrir_url_avisa_si_falla(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     monkeypatch.setattr(webbrowser, "open", lambda url: False)
 
-    abrir_en_navegador(tmp_path / "r.html")
+    abrir_url("http://127.0.0.1:8000/")
 
     assert "No se pudo abrir el navegador" in caplog.text
-
-
-def test_navegador_web_abre_la_ruta(tmp_path: Path, navegador_falso: list[str]) -> None:
-    ruta = tmp_path / "r.html"
-
-    NavegadorWeb().abrir(ruta)
-
-    assert navegador_falso == [ruta.resolve().as_uri()]

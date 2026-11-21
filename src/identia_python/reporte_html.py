@@ -38,6 +38,7 @@ h2 { margin: 4px 0 8px; font-size: 1.2rem; line-height: 1.3; }
 a.url { color: var(--link); font-size: .85rem; word-break: break-all; }
 p { margin: 10px 0 0; }
 .fallo { color: var(--error); font-weight: 600; }
+a.volver { color: var(--link); display: inline-block; margin-bottom: 16px; }
 """
 
 
@@ -57,8 +58,20 @@ def _tarjeta(i: int, url: str, articulo: Articulo | None) -> str:
     )
 
 
-def generar_html(urls: Sequence[str], resultados: Sequence[Articulo | None]) -> str:
-    """Arma una página HTML autocontenida con un resultado por url, en orden."""
+def generar_html(
+    urls: Sequence[str],
+    resultados: Sequence[Articulo | None],
+    volver: str | None = None,
+) -> str:
+    """
+    Arma una página HTML autocontenida con un resultado por url, en orden.
+    Si se indica `volver`, agrega arriba un enlace a esa dirección.
+    """
+    enlace_volver = (
+        f'<a class="volver" href="{escape(volver)}">← Nuevo reporte</a>'
+        if volver is not None
+        else ""
+    )
     fecha = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     resumen = texto_resumen(resultados)
     tarjetas = "\n".join(
@@ -75,6 +88,7 @@ def generar_html(urls: Sequence[str], resultados: Sequence[Articulo | None]) -> 
 </head>
 <body>
 <main>
+{enlace_volver}
 <h1>Resultados</h1>
 <p class="meta">Generado el {fecha} · {resumen}</p>
 {tarjetas}

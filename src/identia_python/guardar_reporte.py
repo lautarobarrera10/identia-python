@@ -16,7 +16,7 @@ def guardar_html(contenido: str, archivo: Path | None = None) -> Path:
 
 
 class ReporteEnArchivo:
-    """Guarda el reporte en un archivo. Cumple GuardadorReporte (salidas.py)."""
+    """Guarda el reporte en un archivo. Cumple GuardadorReporte (generador.py)."""
 
     def __init__(self, archivo: Path | None = None) -> None:
         # None: se usa ARCHIVO_HTML en el momento de guardar

@@ -4,3 +4,6 @@ install:
 
 run:
 	uv run identia-python
+
+test:
+	uv run pytest

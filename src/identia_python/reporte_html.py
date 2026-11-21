@@ -2,6 +2,7 @@
 Generación del contenido del reporte HTML con los resultados.
 """
 
+import json
 from collections.abc import Sequence
 from datetime import datetime
 from html import escape
@@ -44,6 +45,38 @@ a.email {
   display: inline-block; margin: 0 0 20px; padding: 8px 16px; border-radius: 8px;
   background: var(--link); color: #fff; font-weight: 600; text-decoration: none;
 }
+.aviso-email { color: var(--suave); margin: -8px 0 20px; }
+"""
+
+# Al hacer clic en el botón copia el reporte con formato (HTML) y en texto plano
+# al portapapeles; el enlace sigue su curso y abre Gmail en otra pestaña.
+# Se usa el evento "copy" porque es sincrónico: termina antes de que la pestaña
+# nueva le quite el foco a esta (navigator.clipboard exige foco).
+SCRIPT_EMAIL = """
+const datos = JSON.parse(document.getElementById("datos-email").textContent);
+const aviso = document.getElementById("aviso-email");
+function copiarReporte() {
+  let copiado = false;
+  const alCopiar = (e) => {
+    e.clipboardData.setData("text/html", datos.html);
+    e.clipboardData.setData("text/plain", datos.texto);
+    e.preventDefault();
+    copiado = true;
+  };
+  document.addEventListener("copy", alCopiar);
+  try {
+    document.execCommand("copy");
+  } finally {
+    document.removeEventListener("copy", alCopiar);
+  }
+  return copiado;
+}
+document.getElementById("enviar-email").addEventListener("click", () => {
+  aviso.textContent = copiarReporte()
+    ? "Reporte copiado. En Gmail, pegalo en el cuerpo del mensaje con Ctrl+V."
+    : "No se pudo copiar el reporte al portapapeles.";
+  aviso.hidden = false;
+});
 """
 
 
@@ -78,15 +111,62 @@ def texto_email(
     return "\n\n".join(bloques)
 
 
-def enlace_gmail(asunto: str, cuerpo: str) -> str:
+def html_email(
+    urls: Sequence[str], resultados: Sequence[Articulo | None], fecha: str
+) -> str:
+    """
+    Arma el reporte como HTML para pegar en el cuerpo de un email. Los estilos
+    van en línea porque Gmail descarta los bloques <style>.
+    """
+    partes = [
+        '<div style="font-family:Arial,Helvetica,sans-serif;color:#1d2330;'
+        'font-size:14px;line-height:1.5">',
+        '<h1 style="font-size:20px;margin:0 0 4px">Resultados identia-python</h1>',
+        f'<p style="color:#5b6475;margin:0 0 16px">Generado el {escape(fecha)} · '
+        f"{escape(texto_resumen(resultados))}</p>",
+    ]
+    for i, (url, articulo) in enumerate(zip(urls, resultados, strict=True), 1):
+        enlace = (
+            f'<a href="{escape(url)}" style="color:#1a5fb4;font-size:12px;'
+            f'word-break:break-all">{escape(url)}</a>'
+        )
+        if articulo is None:
+            titulo = f"#{i}"
+            contenido = (
+                '<p style="color:#b42318;font-weight:bold;margin:6px 0 0">'
+                "No se pudo procesar esta noticia.</p>"
+            )
+        else:
+            titulo = f"#{i} · {escape(articulo.titulo)}"
+            parrafo = "<br>".join(
+                escape(linea) for linea in articulo.primer_parrafo.split("\n")
+            )
+            contenido = f'<p style="margin:6px 0 0">{parrafo}</p>'
+        partes.append(
+            '<div style="border-top:1px solid #e2e5ea;padding:12px 0">'
+            f'<h2 style="font-size:16px;margin:0 0 4px">{titulo}</h2>'
+            f"{enlace}{contenido}</div>"
+        )
+    partes.append("</div>")
+    return "".join(partes)
+
+
+def enlace_gmail(asunto: str) -> str:
     """
     Arma un enlace que abre la ventana de redacción de Gmail en el navegador
-    con el asunto y el cuerpo (sin destinatario).
+    con el asunto cargado (sin destinatario). El cuerpo se pega desde el
+    portapapeles, porque la url de Gmail solo admite texto plano.
     """
-    return (
-        "https://mail.google.com/mail/?view=cm&fs=1"
-        f"&su={quote(asunto, safe='')}&body={quote(cuerpo, safe='')}"
-    )
+    return f"https://mail.google.com/mail/?view=cm&fs=1&su={quote(asunto, safe='')}"
+
+
+def _datos_email_json(html: str, texto: str) -> str:
+    """
+    Serializa el cuerpo del email para incrustarlo en un <script>. Se escapa
+    "<" para que el contenido no pueda cerrar la etiqueta.
+    """
+    datos = json.dumps({"html": html, "texto": texto}, ensure_ascii=False)
+    return datos.replace("<", "\\u003c")
 
 
 def generar_html(
@@ -106,8 +186,10 @@ def generar_html(
     fecha = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     resumen = texto_resumen(resultados)
     asunto = f"Reporte identia-python - {fecha}"
-    cuerpo = texto_email(urls, resultados, fecha)
-    gmail = enlace_gmail(asunto, cuerpo)
+    gmail = enlace_gmail(asunto)
+    datos_email = _datos_email_json(
+        html_email(urls, resultados, fecha), texto_email(urls, resultados, fecha)
+    )
     tarjetas = "\n".join(
         _tarjeta(i, url, articulo)
         for i, (url, articulo) in enumerate(zip(urls, resultados, strict=True), 1)
@@ -125,10 +207,13 @@ def generar_html(
 {enlace_volver}
 <h1>Resultados</h1>
 <p class="meta">Generado el {fecha} · {resumen}</p>
-<a class="email" href="{escape(gmail)}" target="_blank" rel="noopener">
-✉ Enviar con Gmail</a>
+<a class="email" id="enviar-email" href="{escape(gmail)}" target="_blank"
+ rel="noopener">✉ Enviar con Gmail</a>
+<p class="aviso-email" id="aviso-email" hidden></p>
 {tarjetas}
 </main>
+<script type="application/json" id="datos-email">{datos_email}</script>
+<script>{SCRIPT_EMAIL}</script>
 </body>
 </html>
 """

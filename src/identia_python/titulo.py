@@ -39,12 +39,21 @@ class ExtractorTitulo(ABC):
 
 
 class TituloDesdeH1(ExtractorTitulo):
+    """
+    Primer <h1> que no esté dentro de un enlace. Algunos sitios (p. ej.
+    abogados.com.ar) usan <a><h1>…</h1></a> en listados de otras notas, y ese
+    texto no es el título de la página.
+    """
+
     def extraer(self, soup: BeautifulSoup) -> str | None:
-        h1 = soup.find("h1")
-        titulo = texto_o_none(h1.get_text(" ")) if h1 else None
-        if titulo is not None:
-            logger.debug("Título obtenido de <h1>")
-        return titulo
+        for h1 in soup.find_all("h1"):
+            if h1.find_parent("a") is not None:
+                continue
+            titulo = texto_o_none(h1.get_text(" "))
+            if titulo is not None:
+                logger.debug("Título obtenido de <h1>")
+                return titulo
+        return None
 
 
 class TituloDesdeOgTitle(ExtractorTitulo):

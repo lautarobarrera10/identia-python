@@ -52,6 +52,19 @@ def test_selector_especifico_de_cronista(leer_fixture: Callable[[str], str]) -> 
     )
 
 
+def test_h1_dentro_de_enlaces_no_es_el_titulo(
+    leer_fixture: Callable[[str], str],
+) -> None:
+    html = leer_fixture("articulo_abogados.html")
+
+    articulo = parsear_articulo(html, "https://abogados.com.ar/index.php/nota/1")
+
+    assert articulo.titulo == "Título de la noticia en Abogados"
+    assert articulo.primer_parrafo == (
+        "El primer párrafo de la noticia, que tiene texto suficiente."
+    )
+
+
 def test_selector_de_infobae_no_aplica_a_otros_dominios(
     leer_fixture: Callable[[str], str],
 ) -> None:

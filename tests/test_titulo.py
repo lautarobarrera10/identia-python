@@ -38,6 +38,18 @@ def test_sigue_con_el_siguiente_si_uno_no_encuentra() -> None:
     assert obtener_titulo(_soup(html), [TituloDesdeH1(), TituloDesdeTwitter()]) == "T"
 
 
+def test_h1_dentro_de_un_enlace_se_ignora() -> None:
+    html = '<body><a href="/otra"><h1>Otra nota</h1></a><h1>La nota</h1></body>'
+
+    assert TituloDesdeH1().extraer(_soup(html)) == "La nota"
+
+
+def test_si_todos_los_h1_son_enlaces_no_hay_titulo_de_h1() -> None:
+    html = '<body><a href="/otra"><h1>Otra nota</h1></a></body>'
+
+    assert TituloDesdeH1().extraer(_soup(html)) is None
+
+
 def test_title_solo_con_espacios_no_es_un_titulo() -> None:
     html = "<html><head><title>   </title></head><body></body></html>"
 

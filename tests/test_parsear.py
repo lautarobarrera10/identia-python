@@ -30,6 +30,28 @@ def test_selector_especifico_de_infobae(leer_fixture: Callable[[str], str]) -> N
     )
 
 
+def test_selector_especifico_de_urgente24(leer_fixture: Callable[[str], str]) -> None:
+    html = leer_fixture("articulo_urgente24.html")
+
+    articulo = parsear_articulo(html, "https://urgente24.com/dinero/nota-n1")
+
+    assert articulo.titulo == "Título de la noticia en Urgente24"
+    assert articulo.primer_parrafo == (
+        "La bajada de la noticia, que aparece en un div antes del cuerpo."
+    )
+
+
+def test_selector_especifico_de_cronista(leer_fixture: Callable[[str], str]) -> None:
+    html = leer_fixture("articulo_cronista.html")
+
+    articulo = parsear_articulo(html, "https://www.cronista.com/economia/nota/")
+
+    assert articulo.titulo == "Título de la noticia en El Cronista"
+    assert articulo.primer_parrafo == (
+        "La bajada de la noticia, que aparece en un h2 debajo del título."
+    )
+
+
 def test_selector_de_infobae_no_aplica_a_otros_dominios(
     leer_fixture: Callable[[str], str],
 ) -> None:

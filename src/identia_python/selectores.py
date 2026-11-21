@@ -8,6 +8,8 @@ from urllib.parse import urlparse
 SELECTORES_POR_SITIO: dict[str, tuple[str, str]] = {
     "infobae.com": ("h2", "article-subheadline"),
     "clarin.com": ("h2", "storySummary"),
+    "urgente24.com": ("div", "article-sub-title-p"),
+    "cronista.com": ("h2", "article-head__subtitle"),
 }
 
 

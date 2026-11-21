@@ -9,6 +9,8 @@ from identia_python.selectores import selector_para_url
         ("https://www.infobae.com/x", ("h2", "article-subheadline")),
         ("https://clarin.com/x", ("h2", "storySummary")),
         ("https://WWW.CLARIN.COM/x", ("h2", "storySummary")),
+        ("https://urgente24.com/dinero/x", ("div", "article-sub-title-p")),
+        ("https://www.cronista.com/x", ("h2", "article-head__subtitle")),
         ("https://noclarin.com/x", None),
         ("https://ejemplo.com/x", None),
         ("no es una url", None),

@@ -8,11 +8,15 @@ from datetime import datetime
 from html import escape
 from urllib.parse import quote
 
+from identia_python.medios import nombre_medio
 from identia_python.modelos import Articulo
 from identia_python.resumen import texto_resumen
 
+# color-scheme hace que los enlaces sin estilo propio (los títulos) usen el azul
+# del navegador también en modo oscuro, con buen contraste.
 ESTILOS = """
 :root {
+  color-scheme: light dark;
   --fondo: #f6f7f9; --tarjeta: #ffffff; --texto: #1d2330; --suave: #5b6475;
   --borde: #e2e5ea; --link: #1a5fb4; --error: #b42318; --error-fondo: #fdecea;
 }
@@ -35,11 +39,10 @@ article {
   padding: 18px 20px; margin-bottom: 16px;
 }
 article.error { background: var(--error-fondo); }
-.numero { color: var(--suave); font-size: .85rem; }
-h2 { margin: 4px 0 8px; font-size: 1.2rem; line-height: 1.3; }
-a.url { color: var(--link); font-size: .85rem; word-break: break-all; }
+.medio { margin: 0; color: var(--suave); font-size: .85rem; }
+.medio b { color: var(--texto); }
+h2 { margin: 4px 0 0; font-size: 1.2rem; line-height: 1.3; }
 p { margin: 10px 0 0; }
-.fallo { color: var(--error); font-weight: 600; }
 a.volver { color: var(--link); display: inline-block; margin-bottom: 16px; }
 a.email {
   display: inline-block; margin: 0 0 20px; padding: 8px 16px; border-radius: 8px;
@@ -80,72 +83,82 @@ document.getElementById("enviar-email").addEventListener("click", () => {
 """
 
 
-def _tarjeta(i: int, url: str, articulo: Articulo | None) -> str:
-    enlace = f'<a class="url" href="{escape(url)}" target="_blank">{escape(url)}</a>'
+FORMATO_FECHA = "%d/%m/%Y %H:%M:%S"
+# Fecha que acompaña al medio en cada noticia
+FORMATO_DIA = "%d-%m-%Y"
+TEXTO_FALLO = "No se pudo procesar esta noticia"
+
+
+def _parrafo_html(articulo: Articulo) -> str:
+    """Bajada escapada, con los saltos de línea como <br>."""
+    return "<br>".join(escape(linea) for linea in articulo.primer_parrafo.split("\n"))
+
+
+def _tarjeta(url: str, articulo: Articulo | None, dia: str) -> str:
+    """
+    Una noticia en la página: medio y fecha, el título con enlace a la noticia
+    y la bajada. Si no se pudo procesar, el enlace lleva el aviso de error.
+    """
+    medio = f'<p class="medio"><b>{escape(nombre_medio(url).upper())}</b> · {dia}</p>'
+    titulo = escape(articulo.titulo) if articulo else TEXTO_FALLO
+    enlace = f'<h2><a href="{escape(url)}" target="_blank">{titulo}</a></h2>'
     if articulo is None:
-        return (
-            f'<article class="error"><div class="numero">#{i}</div>{enlace}'
-            '<p class="fallo">No se pudo procesar esta noticia.</p></article>'
-        )
-    parrafo = "<br>".join(
-        escape(linea) for linea in articulo.primer_parrafo.split("\n")
-    )
-    return (
-        f'<article><div class="numero">#{i}</div>'
-        f"<h2>{escape(articulo.titulo)}</h2>{enlace}<p>{parrafo}</p></article>"
-    )
+        return f'<article class="error">{medio}{enlace}</article>'
+    return f"<article>{medio}{enlace}<p>{_parrafo_html(articulo)}</p></article>"
 
 
 def texto_email(
-    urls: Sequence[str], resultados: Sequence[Articulo | None], fecha: str
+    urls: Sequence[str], resultados: Sequence[Articulo | None], momento: datetime
 ) -> str:
-    """Arma el reporte en texto plano, para usarlo como cuerpo de un email."""
-    bloques = [
-        f"Resultados identia-python\nGenerado el {fecha} · {texto_resumen(resultados)}"
-    ]
-    for i, (url, articulo) in enumerate(zip(urls, resultados, strict=True), 1):
+    """
+    Arma el reporte en texto plano, para usarlo como cuerpo de un email. Como
+    el texto plano no tiene enlaces, la url va debajo del título.
+    """
+    dia = momento.strftime(FORMATO_DIA)
+    bloques = []
+    for url, articulo in zip(urls, resultados, strict=True):
+        cabecera = f"{nombre_medio(url).upper()} · {dia}"
         if articulo is None:
-            bloques.append(f"#{i}\n{url}\nNo se pudo procesar esta noticia.")
+            bloques.append(f"{cabecera}\n{TEXTO_FALLO}.\n{url}")
         else:
-            bloques.append(f"#{i} {articulo.titulo}\n{url}\n{articulo.primer_parrafo}")
+            bloques.append(
+                f"{cabecera}\n{articulo.titulo}\n{url}\n{articulo.primer_parrafo}"
+            )
     return "\n\n".join(bloques)
 
 
 def html_email(
-    urls: Sequence[str], resultados: Sequence[Articulo | None], fecha: str
+    urls: Sequence[str], resultados: Sequence[Articulo | None], momento: datetime
 ) -> str:
     """
-    Arma el reporte como HTML para pegar en el cuerpo de un email. Los estilos
-    van en línea porque Gmail descarta los bloques <style>.
+    Arma el reporte como HTML para pegar en el cuerpo de un email: por cada
+    noticia, el medio y la fecha, el título con enlace a la noticia y la
+    bajada. Los estilos van en línea porque Gmail descarta los bloques <style>;
+    el título no lleva estilo propio: toma el de un enlace común.
     """
+    dia = escape(momento.strftime(FORMATO_DIA))
     partes = [
         '<div style="font-family:Arial,Helvetica,sans-serif;color:#1d2330;'
-        'font-size:14px;line-height:1.5">',
-        '<h1 style="font-size:20px;margin:0 0 4px">Resultados identia-python</h1>',
-        f'<p style="color:#5b6475;margin:0 0 16px">Generado el {escape(fecha)} · '
-        f"{escape(texto_resumen(resultados))}</p>",
+        'font-size:14px;line-height:1.5">'
     ]
-    for i, (url, articulo) in enumerate(zip(urls, resultados, strict=True), 1):
-        enlace = (
-            f'<a href="{escape(url)}" style="color:#1a5fb4;font-size:12px;'
-            f'word-break:break-all">{escape(url)}</a>'
+    for url, articulo in zip(urls, resultados, strict=True):
+        cabecera = (
+            '<p style="margin:0;font-size:12px;color:#5b6475">'
+            f'<b style="color:#1d2330">{escape(nombre_medio(url).upper())}</b>'
+            f" · {dia}</p>"
         )
-        if articulo is None:
-            titulo = f"#{i}"
-            contenido = (
-                '<p style="color:#b42318;font-weight:bold;margin:6px 0 0">'
-                "No se pudo procesar esta noticia.</p>"
-            )
-        else:
-            titulo = f"#{i} · {escape(articulo.titulo)}"
-            parrafo = "<br>".join(
-                escape(linea) for linea in articulo.primer_parrafo.split("\n")
-            )
-            contenido = f'<p style="margin:6px 0 0">{parrafo}</p>'
+        titulo = escape(articulo.titulo) if articulo else TEXTO_FALLO
+        contenido = (
+            f'<p style="margin:6px 0 0">{_parrafo_html(articulo)}</p>'
+            if articulo
+            else ""
+        )
         partes.append(
-            '<div style="border-top:1px solid #e2e5ea;padding:12px 0">'
-            f'<h2 style="font-size:16px;margin:0 0 4px">{titulo}</h2>'
-            f"{enlace}{contenido}</div>"
+            '<div style="padding:12px 0">'
+            f"{cabecera}"
+            '<h2 style="font-size:16px;margin:4px 0 0">'
+            f'<a href="{escape(url)}">{titulo}</a></h2>'
+            f"{contenido}</div>"
         )
     partes.append("</div>")
     return "".join(partes)
@@ -183,16 +196,18 @@ def generar_html(
         if volver is not None
         else ""
     )
-    fecha = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    momento = datetime.now()
+    fecha = momento.strftime(FORMATO_FECHA)
     resumen = texto_resumen(resultados)
     asunto = f"Reporte identia-python - {fecha}"
     gmail = enlace_gmail(asunto)
     datos_email = _datos_email_json(
-        html_email(urls, resultados, fecha), texto_email(urls, resultados, fecha)
+        html_email(urls, resultados, momento), texto_email(urls, resultados, momento)
     )
+    dia = momento.strftime(FORMATO_DIA)
     tarjetas = "\n".join(
-        _tarjeta(i, url, articulo)
-        for i, (url, articulo) in enumerate(zip(urls, resultados, strict=True), 1)
+        _tarjeta(url, articulo, dia)
+        for url, articulo in zip(urls, resultados, strict=True)
     )
     return f"""<!doctype html>
 <html lang="es">

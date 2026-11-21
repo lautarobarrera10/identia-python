@@ -52,6 +52,28 @@ def test_selector_especifico_de_cronista(leer_fixture: Callable[[str], str]) -> 
     )
 
 
+def test_selector_especifico_de_pagina12(leer_fixture: Callable[[str], str]) -> None:
+    html = leer_fixture("articulo_pagina12.html")
+
+    articulo = parsear_articulo(html, "https://www.pagina12.com.ar/2026/01/24/nota/")
+
+    assert articulo.titulo == "Título de la noticia en Página/12"
+    assert articulo.primer_parrafo == (
+        "La bajada de la noticia, que aparece en un h3 debajo del título."
+    )
+
+
+def test_selector_especifico_de_lanacion(leer_fixture: Callable[[str], str]) -> None:
+    html = leer_fixture("articulo_lanacion.html")
+
+    articulo = parsear_articulo(html, "https://www.lanacion.com.ar/el-mundo/nota-nid1/")
+
+    assert articulo.titulo == "Título de la noticia en La Nación"
+    assert articulo.primer_parrafo == (
+        "La bajada de la noticia, que aparece en un h2 debajo del título."
+    )
+
+
 def test_h1_dentro_de_enlaces_no_es_el_titulo(
     leer_fixture: Callable[[str], str],
 ) -> None:

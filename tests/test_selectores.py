@@ -11,6 +11,8 @@ from identia_python.selectores import selector_para_url
         ("https://WWW.CLARIN.COM/x", ("h2", "storySummary")),
         ("https://urgente24.com/dinero/x", ("div", "article-sub-title-p")),
         ("https://www.cronista.com/x", ("h2", "article-head__subtitle")),
+        ("https://www.pagina12.com.ar/x", ("h3", "p12Header")),
+        ("https://www.lanacion.com.ar/x", ("h2", "--bajada")),
         ("https://noclarin.com/x", None),
         ("https://ejemplo.com/x", None),
         ("no es una url", None),

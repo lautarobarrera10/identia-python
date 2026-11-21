@@ -10,6 +10,8 @@ SELECTORES_POR_SITIO: dict[str, tuple[str, str]] = {
     "clarin.com": ("h2", "storySummary"),
     "urgente24.com": ("div", "article-sub-title-p"),
     "cronista.com": ("h2", "article-head__subtitle"),
+    "pagina12.com.ar": ("h3", "p12Header"),
+    "lanacion.com.ar": ("h2", "--bajada"),
 }
 
 

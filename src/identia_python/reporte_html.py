@@ -5,6 +5,7 @@ Generación del contenido del reporte HTML con los resultados.
 from collections.abc import Sequence
 from datetime import datetime
 from html import escape
+from urllib.parse import quote
 
 from identia_python.modelos import Articulo
 from identia_python.resumen import texto_resumen
@@ -39,6 +40,10 @@ a.url { color: var(--link); font-size: .85rem; word-break: break-all; }
 p { margin: 10px 0 0; }
 .fallo { color: var(--error); font-weight: 600; }
 a.volver { color: var(--link); display: inline-block; margin-bottom: 16px; }
+a.email {
+  display: inline-block; margin: 0 0 20px; padding: 8px 16px; border-radius: 8px;
+  background: var(--link); color: #fff; font-weight: 600; text-decoration: none;
+}
 """
 
 
@@ -58,6 +63,32 @@ def _tarjeta(i: int, url: str, articulo: Articulo | None) -> str:
     )
 
 
+def texto_email(
+    urls: Sequence[str], resultados: Sequence[Articulo | None], fecha: str
+) -> str:
+    """Arma el reporte en texto plano, para usarlo como cuerpo de un email."""
+    bloques = [
+        f"Resultados identia-python\nGenerado el {fecha} · {texto_resumen(resultados)}"
+    ]
+    for i, (url, articulo) in enumerate(zip(urls, resultados, strict=True), 1):
+        if articulo is None:
+            bloques.append(f"#{i}\n{url}\nNo se pudo procesar esta noticia.")
+        else:
+            bloques.append(f"#{i} {articulo.titulo}\n{url}\n{articulo.primer_parrafo}")
+    return "\n\n".join(bloques)
+
+
+def enlace_gmail(asunto: str, cuerpo: str) -> str:
+    """
+    Arma un enlace que abre la ventana de redacción de Gmail en el navegador
+    con el asunto y el cuerpo (sin destinatario).
+    """
+    return (
+        "https://mail.google.com/mail/?view=cm&fs=1"
+        f"&su={quote(asunto, safe='')}&body={quote(cuerpo, safe='')}"
+    )
+
+
 def generar_html(
     urls: Sequence[str],
     resultados: Sequence[Articulo | None],
@@ -74,6 +105,9 @@ def generar_html(
     )
     fecha = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     resumen = texto_resumen(resultados)
+    asunto = f"Reporte identia-python - {fecha}"
+    cuerpo = texto_email(urls, resultados, fecha)
+    gmail = enlace_gmail(asunto, cuerpo)
     tarjetas = "\n".join(
         _tarjeta(i, url, articulo)
         for i, (url, articulo) in enumerate(zip(urls, resultados, strict=True), 1)
@@ -91,6 +125,8 @@ def generar_html(
 {enlace_volver}
 <h1>Resultados</h1>
 <p class="meta">Generado el {fecha} · {resumen}</p>
+<a class="email" href="{escape(gmail)}" target="_blank" rel="noopener">
+✉ Enviar con Gmail</a>
 {tarjetas}
 </main>
 </body>

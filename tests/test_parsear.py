@@ -74,6 +74,19 @@ def test_selector_especifico_de_lanacion(leer_fixture: Callable[[str], str]) -> 
     )
 
 
+def test_selector_especifico_de_perfil(leer_fixture: Callable[[str], str]) -> None:
+    html = leer_fixture("articulo_perfil.html")
+
+    articulo = parsear_articulo(
+        html, "https://noticias.perfil.com/noticias/ciencia/nota.phtml"
+    )
+
+    assert articulo.titulo == "Título de la noticia en Perfil"
+    assert articulo.primer_parrafo == (
+        "La bajada de la noticia, que aparece en un p debajo del título."
+    )
+
+
 def test_h1_dentro_de_enlaces_no_es_el_titulo(
     leer_fixture: Callable[[str], str],
 ) -> None:
